@@ -3,7 +3,7 @@ import { useAppState } from "../../state/AppStateContext";
 import BottomNav from "./BottomNav";
 import TooltipSheet from "./TooltipSheet";
 
-const NAV_ROUTES = new Set(["/", "/transfer", "/exit"]);
+const NAV_ROUTES = new Set(["/app", "/app/transfer", "/app/exit"]);
 
 export default function AppShell() {
   const { pathname } = useLocation();

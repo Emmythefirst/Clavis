@@ -16,7 +16,7 @@ export default function Exit() {
     <>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px 20px 32px", background: "#FBF9F4" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
-          <button onClick={() => navigate("/")} style={{ background: "none", border: "none", padding: 4 }}>
+          <button onClick={() => navigate("/app")} style={{ background: "none", border: "none", padding: 4 }}>
             <ChevronLeftIcon />
           </button>
           <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Exit to mainnet</span>
@@ -43,7 +43,9 @@ export default function Exit() {
               </div>
             </div>
             <p style={{ fontSize: 13, lineHeight: 1.55, color: "#8A8478", margin: "0 0 auto", maxWidth: 300 }}>
-              This BTC is fully yours. The moment the timelock clears, you can withdraw it — unilaterally, no permission needed from anyone.
+              This BTC is fully yours. Right now, exits go through cooperative co-signing with the
+              TAURUS operator. The moment the timelock clears, you can withdraw it unilaterally
+              instead — no permission needed from anyone.
             </p>
             <button
               disabled
@@ -118,7 +120,7 @@ export default function Exit() {
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#5F5A4E" }}>7d3a...e91f</div>
             </div>
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/app")}
               style={{ width: "100%", background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: 20 }}
             >
               Done

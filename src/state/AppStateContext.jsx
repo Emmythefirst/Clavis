@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { getVaultStatus, getRecentActivity } from "../lib/taurusSdk";
 import { DEFAULT_GUARDIAN_RULES, DEFAULT_GUARDIAN_LOG } from "../lib/guardianRules";
+import { generateMnemonicWords, deriveFirstAddress } from "../lib/wallet";
 
 const AppStateContext = createContext(null);
 
@@ -27,6 +28,11 @@ export function AppStateProvider({ children }) {
   const [exitDone, setExitDone] = useState(false);
 
   const [tooltipKey, setTooltipKey] = useState(null);
+
+  // Fallback so the Receive BTC screen always has a real address even when
+  // /app is reached directly, skipping onboarding. Onboarding overwrites this
+  // with its own derived address via setWalletAddress once it completes.
+  const [walletAddress, setWalletAddress] = useState(() => deriveFirstAddress(generateMnemonicWords()));
 
   useEffect(() => {
     getVaultStatus().then(setVault);
@@ -110,6 +116,9 @@ export function AppStateProvider({ children }) {
     tooltipKey,
     openTooltip: setTooltipKey,
     closeTooltip: () => setTooltipKey(null),
+
+    walletAddress,
+    setWalletAddress,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

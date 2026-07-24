@@ -7,7 +7,7 @@ const TOOLTIP_CONTENT = {
   },
   spendable: {
     title: "Spendable",
-    body: "Your instant, off-chain VTXO balance — usable right away for sends and receives.",
+    body: "Your instant, off-chain VTXO balance — usable right away for sends and receives, cooperatively signed with the TAURUS operator. Once your timelock clears, you can always fall back to a unilateral exit instead.",
   },
   timelock: {
     title: "Timelock",

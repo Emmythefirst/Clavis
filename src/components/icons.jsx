@@ -143,6 +143,20 @@ export function ArrowDownToLineIcon({ size = 16, color = "#1C2430" }) {
   );
 }
 
+export function ReceiveIcon({ size = 16, color = "#1C2430" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M20 4L4 20M4 20H12M4 20V12"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ArrowUpRightIcon({ size = 16, color = "#1C2430" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -194,6 +208,61 @@ export function HomeNavIcon({ size = 19, color = "#B3AA97" }) {
         d="M6 10v9h12v-9"
         stroke={color}
         strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function EyeIcon({ size = 20, color = "#1C2430" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke={color} strokeWidth="2" />
+    </svg>
+  );
+}
+
+export function KeyIcon({ size = 28, color = "#FBF9F4" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="8" cy="8" r="4" stroke={color} strokeWidth="2" />
+      <path
+        d="M11 11l9 9m-5-5l2.5-2.5M17.5 17.5L20 15"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function ShieldIcon({ size = 24, color = "#1C2430" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function ArrowRightIcon({ size = 18, color = "#FBF9F4" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M5 12h14M13 6l6 6-6 6"
+        stroke={color}
+        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

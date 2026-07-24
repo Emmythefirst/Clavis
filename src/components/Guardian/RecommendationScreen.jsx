@@ -10,12 +10,12 @@ export default function RecommendationScreen() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px 20px 32px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <button onClick={() => navigate("/")} style={{ background: "none", border: "none", padding: 4 }}>
+          <button onClick={() => navigate("/app")} style={{ background: "none", border: "none", padding: 4 }}>
             <ChevronLeftIcon />
           </button>
           <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Guardian</span>
         </div>
-        <button onClick={() => navigate("/guardian/log")} style={{ background: "none", border: "none", padding: 4 }}>
+        <button onClick={() => navigate("/app/guardian/log")} style={{ background: "none", border: "none", padding: 4 }}>
           <HistoryIcon size={17} color="#9C958A" />
         </button>
       </div>
@@ -48,7 +48,7 @@ export default function RecommendationScreen() {
               Exit early
             </button>
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/app")}
               style={{ width: "100%", background: "none", border: "1px solid #E7E1D2", color: "#8A8478", borderRadius: 14, padding: 15, fontSize: 13.5, fontWeight: 600 }}
             >
               Dismiss for now
@@ -65,7 +65,7 @@ export default function RecommendationScreen() {
             You confirmed an early exit. Guardian will keep watching your vault and let you know if anything else needs attention.
           </p>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/app")}
             style={{ width: "100%", background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: 24 }}
           >
             Back to vault

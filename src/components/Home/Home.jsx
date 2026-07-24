@@ -16,6 +16,7 @@ import {
   ArrowUpRightIcon,
   ExitNavIcon,
   ArrowUpCircleIcon,
+  ReceiveIcon,
 } from "../icons";
 
 export default function Home() {
@@ -88,7 +89,7 @@ export default function Home() {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "#FFFFFF", border: "1px solid #E7E1D2", borderRadius: 16, padding: "14px 16px", marginBottom: 12 }}>
         <button
-          onClick={() => navigate("/exit")}
+          onClick={() => navigate("/app/exit")}
           style={{ display: "flex", alignItems: "center", gap: 11, background: "none", border: "none", padding: 0, textAlign: "left", flex: 1, minWidth: 0 }}
         >
           <div style={{ width: 34, height: 34, borderRadius: 10, background: status.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -103,7 +104,7 @@ export default function Home() {
           <button onClick={() => openTooltip("timelock")} style={{ background: "none", border: "none", padding: 6, display: "flex", alignItems: "center" }}>
             <InfoIcon size={13} color="#B3AA97" />
           </button>
-          <button onClick={() => navigate("/exit")} style={{ background: "none", border: "none", padding: 6, display: "flex", alignItems: "center" }}>
+          <button onClick={() => navigate("/app/exit")} style={{ background: "none", border: "none", padding: 6, display: "flex", alignItems: "center" }}>
             <ChevronRightIcon size={16} color="#C4BDAE" />
           </button>
         </div>
@@ -111,7 +112,7 @@ export default function Home() {
 
       <div style={{ background: guardian.bg, borderRadius: 16, padding: "14px 16px", marginBottom: 20, transition: "background 0.3s" }}>
         <button
-          onClick={() => navigate("/guardian")}
+          onClick={() => navigate("/app/guardian")}
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left" }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -131,14 +132,14 @@ export default function Home() {
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 11, paddingTop: 11, borderTop: "1px solid #EBDCC0" }}>
           <button
-            onClick={() => navigate("/guardian/setup")}
+            onClick={() => navigate("/app/guardian/setup")}
             style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0 }}
           >
             <GearIcon />
             <span style={{ fontSize: 12, fontWeight: 600, color: "#7A7360" }}>Configure Guardian</span>
           </button>
           <button
-            onClick={() => navigate("/guardian/log")}
+            onClick={() => navigate("/app/guardian/log")}
             style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0 }}
           >
             <HistoryIcon />
@@ -147,23 +148,30 @@ export default function Home() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 24 }}>
         <button
-          onClick={() => navigate("/deposit")}
+          onClick={() => navigate("/app/receive")}
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, background: "#FFFFFF", border: "1px solid #E7E1D2", borderRadius: 14, padding: "14px 6px" }}
+        >
+          <ReceiveIcon />
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1C2430" }}>Receive</span>
+        </button>
+        <button
+          onClick={() => navigate("/app/deposit")}
           style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, background: "#FFFFFF", border: "1px solid #E7E1D2", borderRadius: 14, padding: "14px 6px" }}
         >
           <ArrowDownToLineIcon />
           <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1C2430" }}>Deposit</span>
         </button>
         <button
-          onClick={() => navigate("/transfer")}
+          onClick={() => navigate("/app/transfer")}
           style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, background: "#FFFFFF", border: "1px solid #E7E1D2", borderRadius: 14, padding: "14px 6px" }}
         >
           <ArrowUpRightIcon />
           <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1C2430" }}>Send</span>
         </button>
         <button
-          onClick={() => navigate("/exit")}
+          onClick={() => navigate("/app/exit")}
           style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, background: "#FFFFFF", border: "1px solid #E7E1D2", borderRadius: 14, padding: "14px 6px" }}
         >
           <ExitNavIcon size={16} color="#1C2430" />

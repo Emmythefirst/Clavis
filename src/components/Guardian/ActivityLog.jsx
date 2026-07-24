@@ -15,7 +15,7 @@ export default function ActivityLog() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px 20px 32px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-        <button onClick={() => navigate("/")} style={{ background: "none", border: "none", padding: 4 }}>
+        <button onClick={() => navigate("/app")} style={{ background: "none", border: "none", padding: 4 }}>
           <ChevronLeftIcon />
         </button>
         <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Guardian activity</span>

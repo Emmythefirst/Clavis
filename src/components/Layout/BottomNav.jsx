@@ -19,7 +19,7 @@ export default function BottomNav() {
       }}
     >
       <button
-        onClick={() => navigate("/")}
+        onClick={() => navigate("/app")}
         style={{
           flex: 1,
           display: "flex",
@@ -31,11 +31,11 @@ export default function BottomNav() {
           padding: 6,
         }}
       >
-        <HomeNavIcon color={colorFor("/")} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/") }}>Home</span>
+        <HomeNavIcon color={colorFor("/app")} />
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/app") }}>Home</span>
       </button>
       <button
-        onClick={() => navigate("/transfer")}
+        onClick={() => navigate("/app/transfer")}
         style={{
           flex: 1,
           display: "flex",
@@ -47,13 +47,13 @@ export default function BottomNav() {
           padding: 6,
         }}
       >
-        <ArrowUpRightIcon size={19} color={colorFor("/transfer")} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/transfer") }}>
+        <ArrowUpRightIcon size={19} color={colorFor("/app/transfer")} />
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/app/transfer") }}>
           Send
         </span>
       </button>
       <button
-        onClick={() => navigate("/exit")}
+        onClick={() => navigate("/app/exit")}
         style={{
           flex: 1,
           display: "flex",
@@ -65,8 +65,8 @@ export default function BottomNav() {
           padding: 6,
         }}
       >
-        <ExitNavIcon color={colorFor("/exit")} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/exit") }}>Exit</span>
+        <ExitNavIcon color={colorFor("/app/exit")} />
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/app/exit") }}>Exit</span>
       </button>
     </div>
   );

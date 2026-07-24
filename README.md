@@ -23,12 +23,6 @@ But that guarantee only helps if you're actually paying attention. Most people w
 - **A real, working unilateral exit flow** — once your timelock clears, you can exit back to mainnet, no counterparty required
 - **Exit Guardian** — a background monitor that watches vault health and liquidity conditions, and surfaces a clear recommendation the moment something needs your attention. It never acts on its own — every action requires your one-tap confirmation, with a plain-language explanation of why it was triggered.
 
-## Why This, Not Just Another Wallet
-
-Every team in this bounty can build vault creation, send/receive, and an exit button — that's the requirements list. Clavis's edge is twofold:
-
-1. **Nothing here is faked.** The exit flow, in particular, is a real, working unilateral withdrawal — not a "success!" screen with no mechanism behind it.
-2. **The Guardian is a genuinely harder build than a standard wallet UI.** Most people won't watch their own vault closely enough to catch a real risk before it becomes a problem. Clavis does that watching for you — and shows its reasoning, so it's never a black box making decisions on your behalf.
 
 ## Current Status
 
@@ -102,5 +96,3 @@ App runs at `http://localhost:5173`.
 Emmy ([@Emmythefirst](https://github.com/Emmythefirst)) — solo build for the Tachi OP_Freedom hackathon.
 
 ---
-
-*Submission deadline: August 15, 2026*

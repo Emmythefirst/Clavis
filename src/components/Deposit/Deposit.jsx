@@ -11,7 +11,7 @@ export default function Deposit() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px 20px 32px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
-        <button onClick={() => navigate("/")} style={{ background: "none", border: "none", padding: 4 }}>
+        <button onClick={() => navigate("/app")} style={{ background: "none", border: "none", padding: 4 }}>
           <ChevronLeftIcon />
         </button>
         <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Add to vault</span>
@@ -101,7 +101,7 @@ export default function Deposit() {
           <button
             onClick={() => {
               setDepositStep(0);
-              navigate("/");
+              navigate("/app");
             }}
             style={{ width: "100%", background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: "auto" }}
           >
