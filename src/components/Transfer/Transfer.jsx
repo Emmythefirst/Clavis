@@ -1,0 +1,143 @@
+import { useAppState } from "../../state/AppStateContext";
+import { CheckIcon, CopyIcon } from "../icons";
+
+export default function Transfer() {
+  const {
+    vault,
+    sendMode,
+    setSendMode,
+    sendRecipient,
+    setSendRecipient,
+    sendAmount,
+    setSendAmount,
+    sendSuccess,
+    doSend,
+    resetSend,
+    copyLabel,
+    copyAddress,
+  } = useAppState();
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px 20px 100px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Transfer</span>
+      </div>
+
+      <div style={{ display: "flex", background: "#F1EEE6", borderRadius: 13, padding: 4, marginBottom: 26 }}>
+        <button
+          onClick={() => setSendMode("send")}
+          style={{
+            flex: 1,
+            background: sendMode === "send" ? "#FFFFFF" : "none",
+            color: sendMode === "send" ? "#1C2430" : "#9C958A",
+            border: "none",
+            borderRadius: 10,
+            padding: 10,
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          Send
+        </button>
+        <button
+          onClick={() => setSendMode("receive")}
+          style={{
+            flex: 1,
+            background: sendMode === "receive" ? "#FFFFFF" : "none",
+            color: sendMode === "receive" ? "#1C2430" : "#9C958A",
+            border: "none",
+            borderRadius: 10,
+            padding: 10,
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          Receive
+        </button>
+      </div>
+
+      {sendMode === "send" &&
+        (sendSuccess ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", paddingTop: 30 }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#EAF2EF", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
+              <CheckIcon size={24} />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#1C2430" }}>Sent instantly</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "#8A8478", marginTop: 6 }}>
+              {sendAmount} BTC · off-chain
+            </div>
+            <button
+              onClick={resetSend}
+              style={{ width: "100%", background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: "auto" }}
+            >
+              Send another
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+            <label style={{ fontSize: 11.5, fontWeight: 700, color: "#9C958A", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
+              To
+            </label>
+            <input
+              value={sendRecipient}
+              onChange={(e) => setSendRecipient(e.target.value)}
+              placeholder="Lightning address or VTXO invoice"
+              style={{ width: "100%", background: "#F1EEE6", border: "1px solid transparent", borderRadius: 13, padding: 14, fontSize: 13.5, color: "#1C2430", marginBottom: 20 }}
+            />
+            <label style={{ fontSize: 11.5, fontWeight: 700, color: "#9C958A", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
+              Amount
+            </label>
+            <div style={{ display: "flex", alignItems: "center", background: "#F1EEE6", borderRadius: 13, padding: 14, marginBottom: 24 }}>
+              <input
+                value={sendAmount}
+                onChange={(e) => setSendAmount(e.target.value)}
+                placeholder="0.00"
+                style={{ flex: 1, background: "none", border: "none", fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: "#1C2430", outline: "none" }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#9C958A" }}>BTC</span>
+            </div>
+            <button
+              onClick={doSend}
+              style={{ width: "100%", background: "#0F6A5C", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: "auto" }}
+            >
+              Send
+            </button>
+          </div>
+        ))}
+
+      {sendMode === "receive" && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+          <div style={{ width: 190, height: 190, borderRadius: 18, background: "#FFFFFF", border: "1px solid #E7E1D2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 22 }}>
+            <div
+              style={{
+                width: 150,
+                height: 150,
+                borderRadius: 10,
+                background: "repeating-linear-gradient(45deg, #EFEADD, #EFEADD 8px, #F7F4EB 8px, #F7F4EB 16px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 11,
+                color: "#B3AA97",
+                fontWeight: 600,
+              }}
+            >
+              QR code
+            </div>
+          </div>
+          <div style={{ width: "100%", background: "#F1EEE6", borderRadius: 13, padding: "13px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20 }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#5F5A4E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {vault?.receiveAddress}
+            </span>
+            <button onClick={copyAddress} style={{ background: "none", border: "none", flexShrink: 0, padding: 2 }}>
+              <CopyIcon />
+            </button>
+          </div>
+          <p style={{ fontSize: 12.5, color: "#9C958A", textAlign: "center", margin: "0 0 auto", lineHeight: 1.5 }}>
+            {copyLabel}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

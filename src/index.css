@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #ede8dd;
+  font-family: "Public Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input {
+  font-family: inherit;
+}
+
+::selection {
+  background: #0f6a5c33;
+}
+
+@media (min-width: 620px) {
+  .app-shell {
+    border-radius: 32px;
+    box-shadow:
+      0 30px 80px -20px rgba(28, 36, 48, 0.35),
+      0 2px 8px rgba(28, 36, 48, 0.08);
+    min-height: 860px;
+    margin: 40px auto;
+    border: 1px solid #ded7c6;
+  }
+}
