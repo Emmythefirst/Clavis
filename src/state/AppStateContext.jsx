@@ -46,6 +46,11 @@ export function AppStateProvider({ children }) {
     return () => clearInterval(timer);
   }, []);
 
+  // Guardian's resolved state is the single source of truth for vault health —
+  // the status pill, timelock headline, and Guardian banner all derive from it
+  // so they can never independently drift into contradicting each other.
+  const vaultStatus = guardianResolved ? "healthy" : "attention";
+
   function confirmGuardian() {
     setGuardianResolved(true);
     setGuardianLog((log) =>
@@ -85,6 +90,7 @@ export function AppStateProvider({ children }) {
     vault,
     activity,
     guardianResolved,
+    vaultStatus,
     guardianRules,
     guardianLog,
     confirmGuardian,

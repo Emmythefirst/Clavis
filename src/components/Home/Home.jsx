@@ -21,12 +21,12 @@ import {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { vault, activity, guardianResolved, openTooltip } = useAppState();
+  const { vault, activity, guardianResolved, vaultStatus, openTooltip } = useAppState();
 
   if (!vault) return null;
 
-  const status = getStatusMeta(vault.status);
-  const timelockHeadline = getTimelockHeadline(vault.status);
+  const status = getStatusMeta(vaultStatus);
+  const timelockHeadline = getTimelockHeadline(vaultStatus);
   const guardian = getGuardianMeta(guardianResolved);
 
   return (

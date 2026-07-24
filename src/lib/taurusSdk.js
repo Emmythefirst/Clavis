@@ -3,7 +3,6 @@
 // callers should never depend on values beyond this module's return shapes.
 
 const MOCK_VAULT = {
-  status: "attention", // 'healthy' | 'attention' | 'action'
   lockedBtc: 0.0842,
   lockedSats: 8420000,
   spendableBtc: 0.0113,
