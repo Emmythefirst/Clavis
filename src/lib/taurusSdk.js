@@ -18,7 +18,7 @@ import {
   toXOnly,
 } from "@tachibtc/taurus-vault-core";
 import { btcToSats } from "@tachibtc/taurus-wallet-aggregator";
-import { getFundingWallet, getUserSigner, getWalletNetworkConfig, WALLET_CHAIN } from "./wallet";
+import { getFundingWallet, getUserSigner, getRpcProxyUrl, getWalletNetworkConfig, WALLET_CHAIN } from "./wallet";
 
 const SIGNET_FEE_RATE_SAT_VB = 1;
 
@@ -68,7 +68,11 @@ export async function registerDepositOnLedger(mnemonicWords, amountSats) {
     // own vtxo-quickstart.md example and is accepted.
     const draft = buildTachiTxDeposit({ userXOnly, amountSats, nonce, feeSats: 2n });
     const signed = await signTachiTx(draft, userSigner);
-    await broadcastTachiTx(signed, { url: `${baseUrl}/tachi_txBroadcastSync` });
+    // Routed through our proxy (see api/rpc-proxy.js), not baseUrl directly —
+    // /tachi_txBroadcastSync is a POST route with the same CORS gap as the
+    // raw Bitcoin RPC proxy (PROGRESS.md 2026-08-15). GET routes below
+    // (waitForVtxoCommit, and getAccountNonce above) don't have this problem.
+    await broadcastTachiTx(signed, getRpcProxyUrl("/tachi_txBroadcastSync"));
     const vtxoId = vtxoIdFromDeposit(signed, 0);
     await waitForVtxoCommit(vtxoId, { baseUrl, overallTimeoutMs: 60000, pollIntervalMs: 1500 });
     return { ok: true, vtxoId: vtxoId.toString("hex") };

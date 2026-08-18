@@ -51,6 +51,20 @@ export function getWalletNetworkConfig() {
   return getWalletNetwork(WALLET_CHAIN);
 }
 
+// Absolute URL to our CORS-workaround proxy (see api/rpc-proxy.js) for a
+// given Tachi daemon path. Unlike getRpc() above, this has to be a full
+// absolute URL, not a bare "/api/rpc-proxy..." string — broadcastTachiTx and
+// friends run their own `new URL(url)` scheme check (CWE-319 guard) with no
+// base, which throws on a relative path. window.location.origin is https://
+// on Vercel; only local `npm run dev` is http://, so allowInsecureHttp is
+// scoped to that via import.meta.env.DEV, not left on unconditionally.
+export function getRpcProxyUrl(path) {
+  return {
+    url: `${window.location.origin}/api/rpc-proxy?network=${WALLET_CHAIN}&path=${encodeURIComponent(path)}`,
+    allowInsecureHttp: import.meta.env.DEV,
+  };
+}
+
 const STORAGE_KEY = "clavis.walletMnemonic";
 
 // Persists the funding wallet's mnemonic across reloads. Without this, a

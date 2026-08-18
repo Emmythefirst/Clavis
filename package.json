@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@noble/hashes": "^2.3.0",
     "@tachibtc/tachi-sdk-ts": "^0.2.1",
     "@tachibtc/taurus-vault-core": "^0.3.3",
     "@tachibtc/taurus-wallet-aggregator": "^0.4.4",
