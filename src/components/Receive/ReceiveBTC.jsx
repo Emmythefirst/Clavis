@@ -29,8 +29,9 @@ export default function ReceiveBTC() {
         <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Receive BTC</span>
       </div>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "#9C958A", margin: "0 0 22px" }}>
-        Your standard Bitcoin address — for receiving from an exchange or another wallet. Not the
-        same as your VTXO receive address, which is for instant off-chain transfers.
+        Your standard Bitcoin address on signet (test network) — for receiving from an exchange,
+        faucet, or another wallet. Not the same as your VTXO receive address, which is for instant
+        off-chain transfers.
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>

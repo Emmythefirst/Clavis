@@ -8,8 +8,13 @@ const PIN_LENGTH = 4;
 
 export default function AppLockScreen({ next }) {
   const navigate = useNavigate();
-  const { lockStep, submitLockPin, resetLockSetup, derivedAddress } = useOnboarding();
-  const { setWalletAddress } = useAppState();
+  const { lockStep, submitLockPin, resetLockSetup, derivedAddress, mnemonicWords } = useOnboarding();
+  const { setWalletAddress, setWalletMnemonic } = useAppState();
+
+  function carryWalletIntoApp() {
+    if (derivedAddress) setWalletAddress(derivedAddress);
+    if (mnemonicWords.length) setWalletMnemonic(mnemonicWords);
+  }
   const [digits, setDigits] = useState(Array(PIN_LENGTH).fill(""));
   const [error, setError] = useState(null);
   const inputRefs = useRef([]);
@@ -45,14 +50,14 @@ export default function AppLockScreen({ next }) {
       return;
     }
     if (result.done) {
-      if (derivedAddress) setWalletAddress(derivedAddress);
+      carryWalletIntoApp();
       navigate(next);
     }
   }
 
   function handleSkip() {
     resetLockSetup();
-    if (derivedAddress) setWalletAddress(derivedAddress);
+    carryWalletIntoApp();
     navigate(next);
   }
 

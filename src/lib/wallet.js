@@ -1,31 +1,122 @@
-// Real client-side key generation and standard Bitcoin address derivation.
-// Uses the audited @scure suite (bip39/bip32/btc-signer) — no custom crypto.
-// The TAURUS vault/VTXO address format stays mocked in taurusSdk.js until
-// Tachi's SDK docs are published; only the underlying wallet keys are real.
-import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from "@scure/bip39";
-import { wordlist } from "@scure/bip39/wordlists/english.js";
-import { HDKey } from "@scure/bip32";
-import { getAddress, NETWORK } from "@scure/btc-signer";
+// Real client-side key generation and wallet management, built directly on
+// Tachi's own SDK (@tachibtc/taurus-wallet-aggregator) rather than a
+// hand-rolled bip39/bip32/address stack. This matters for two reasons:
+//   1. Network — Tachi only operates on regtest/signet, never mainnet, so a
+//      mainnet-derived address can't actually fund a vault.
+//   2. Shape — @tachibtc/taurus-vault-core's createVault/depositToVault both
+//      expect a `Wallet` instance from this aggregator, not a raw keypair.
+// bip39 wordlist comes from the `bip39` package (a wallet-aggregator
+// dependency, already installed) purely for building verify-challenge
+// distractors — it's the same standard 2048-word English list regardless of
+// which library reads it.
+import {
+  WalletAggregator,
+  BitcoinCoreRpcClient,
+  getWalletNetwork,
+  generateMnemonic,
+  validateMnemonic,
+  Keystore,
+  getNetwork,
+} from "@tachibtc/taurus-wallet-aggregator";
+import { wordlists } from "bip39";
+import { Buffer } from "buffer";
 
-export const MNEMONIC_WORD_COUNT = 12;
+export const MNEMONIC_WORD_COUNT = 12; // 128-bit strength
 
-const RECEIVE_PATH = "m/84'/0'/0'/0/0";
+// Tachi's regtest is a private chain with no faucet we have access to (see
+// PROGRESS.md, 2026-08-15). Signet is the real public signet chain, so any
+// public signet faucet can fund a wallet here — that's what we build against.
+export const WALLET_CHAIN = "signet";
+
+const wordlist = wordlists.english;
+
+function getRpc() {
+  return new BitcoinCoreRpcClient({
+    // Routed through our own /api/rpc-proxy (see api/rpc-proxy.js) rather
+    // than Tachi's rpc.jsonRpc URL directly: Tachi's POST / Bitcoin-RPC-proxy
+    // endpoint doesn't send CORS headers on its preflight, so a browser
+    // can't call it cross-origin. GET routes (validators, health) don't have
+    // this problem and are still called directly — see getWalletNetworkConfig.
+    url: "/api/rpc-proxy?network=" + WALLET_CHAIN,
+    // BitcoinCoreRpcClient defaults to a bare `globalThis.fetch` reference and
+    // later calls it as `this.#fetchImpl(...)` — browsers reject that with
+    // "Illegal invocation" because native fetch requires `window` as its
+    // receiver. Wrapping it in a plain function keeps the call a bare
+    // `fetch(...)` invocation, which browsers accept.
+    fetchImpl: (...args) => fetch(...args),
+  });
+}
+
+export function getWalletNetworkConfig() {
+  return getWalletNetwork(WALLET_CHAIN);
+}
+
+const STORAGE_KEY = "clavis.walletMnemonic";
+
+// Persists the funding wallet's mnemonic across reloads. Without this, a
+// fresh random wallet was generated on every page load, silently orphaning
+// any address a user had already funded from a faucet — real signet coins,
+// unreachable through the UI. Plaintext localStorage isn't real key security;
+// this is scoped to a signet demo wallet holding worthless test coins, not a
+// claim about how a production wallet should store secrets (same principle
+// as the PIN-lock scoping note in PROGRESS.md).
+export function loadStoredMnemonic() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveMnemonic(words) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
+  } catch {
+    // Storage unavailable (private browsing, quota) — non-fatal, this
+    // session's wallet just won't survive a reload.
+  }
+}
 
 export function generateMnemonicWords() {
-  return generateMnemonic(wordlist, 128).split(" ");
+  return generateMnemonic(128).split(" ");
 }
 
 export function isValidMnemonic(words) {
-  const phrase = words.join(" ").trim().toLowerCase();
   if (words.some((w) => !w)) return false;
-  return validateMnemonic(phrase, wordlist);
+  return validateMnemonic(words.join(" ").trim().toLowerCase());
+}
+
+// Builds a live aggregator + p2wpkh funding wallet for the given mnemonic.
+// Stateless/on-demand by design — callers re-derive from the mnemonic rather
+// than holding a long-lived signer in memory.
+export function getFundingWallet(words) {
+  const rpc = getRpc();
+  const aggregator = WalletAggregator.fromMnemonic(words.join(" "), {
+    network: WALLET_CHAIN,
+    rpc,
+  });
+  const wallet = aggregator.addAccount({ addressType: "p2wpkh" });
+  return { aggregator, wallet, rpc };
 }
 
 export function deriveFirstAddress(words) {
-  const seed = mnemonicToSeedSync(words.join(" "));
-  const root = HDKey.fromMasterSeed(seed);
-  const child = root.derive(RECEIVE_PATH);
-  return getAddress("wpkh", child.privateKey, NETWORK);
+  return getFundingWallet(words).wallet.receiveAddress;
+}
+
+// Derives a Schnorr-capable signer for VTXO/TachiTx signing — separate from
+// the funding wallet above, which only needs to sign ECDSA (the P2WPKH
+// deposit tx). Same mnemonic/network/addressType/account as getFundingWallet,
+// so it signs for the exact key vault.userKey commits to (per Tachi's
+// vtxo-quickstart.md "Derive a Schnorr signer" step).
+export function getUserSigner(words) {
+  const keystore = Keystore.fromMnemonic(words.join(" "), "", getNetwork(WALLET_CHAIN), "p2wpkh", 0);
+  const node = keystore.signerFor(false, 0); // receive, index 0
+  return {
+    publicKey: Buffer.from(node.publicKey),
+    sign: (hash) => Buffer.from(node.sign(hash)),
+    signSchnorr: (hash) => Buffer.from(node.signSchnorr(hash)),
+  };
 }
 
 function randomWord() {

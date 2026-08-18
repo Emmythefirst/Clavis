@@ -1,9 +1,14 @@
+import { useEffect, useState } from "react";
 import { useAppState } from "../../state/AppStateContext";
 import { CheckIcon, CopyIcon } from "../icons";
 
+function truncate(address) {
+  if (!address || address.length <= 24) return address;
+  return `${address.slice(0, 14)}...${address.slice(-8)}`;
+}
+
 export default function Transfer() {
   const {
-    vault,
     sendMode,
     setSendMode,
     sendRecipient,
@@ -13,9 +18,25 @@ export default function Transfer() {
     sendSuccess,
     doSend,
     resetSend,
-    copyLabel,
-    copyAddress,
+    realVault,
+    ensureRealVault,
   } = useAppState();
+
+  const [vaultError, setVaultError] = useState(null);
+  const [copyLabel, setCopyLabel] = useState("Tap to copy your vault address");
+  const vaultBusy = sendMode === "receive" && !realVault && !vaultError;
+
+  useEffect(() => {
+    if (sendMode !== "receive" || realVault) return;
+    ensureRealVault().catch((err) => setVaultError(err.message));
+  }, [sendMode, realVault, ensureRealVault]);
+
+  function copyAddress() {
+    if (realVault?.p2tr?.address) {
+      navigator.clipboard?.writeText(realVault.p2tr.address).catch(() => {});
+    }
+    setCopyLabel("Copied to clipboard");
+  }
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px 20px 100px" }}>
@@ -107,6 +128,11 @@ export default function Transfer() {
 
       {sendMode === "receive" && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+          <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "#9C958A", textAlign: "center", margin: "0 0 20px" }}>
+            Your vault address — VTXO transfers move directly between vault addresses, so this is
+            the same address your vault locks BTC into. Not the same as your plain Bitcoin receive
+            address, which is for funding the vault in the first place.
+          </p>
           <div style={{ width: 190, height: 190, borderRadius: 18, background: "#FFFFFF", border: "1px solid #E7E1D2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 22 }}>
             <div
               style={{
@@ -127,14 +153,14 @@ export default function Transfer() {
           </div>
           <div style={{ width: "100%", background: "#F1EEE6", borderRadius: 13, padding: "13px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20 }}>
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#5F5A4E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {vault?.receiveAddress}
+              {vaultBusy ? "Creating your vault..." : vaultError ? "Couldn't create vault" : truncate(realVault?.p2tr?.address)}
             </span>
             <button onClick={copyAddress} style={{ background: "none", border: "none", flexShrink: 0, padding: 2 }}>
               <CopyIcon />
             </button>
           </div>
-          <p style={{ fontSize: 12.5, color: "#9C958A", textAlign: "center", margin: "0 0 auto", lineHeight: 1.5 }}>
-            {copyLabel}
+          <p style={{ fontSize: 12.5, color: vaultError ? "#95392A" : "#9C958A", textAlign: "center", margin: "0 0 auto", lineHeight: 1.5 }}>
+            {vaultError || copyLabel}
           </p>
         </div>
       )}

@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- context Provider + its hook are intentionally colocated */
 import { createContext, useContext, useEffect, useState } from "react";
-import { getVaultStatus, getRecentActivity } from "../lib/taurusSdk";
+import { getVaultStatus, getRecentActivity, createRealVault } from "../lib/taurusSdk";
 import { DEFAULT_GUARDIAN_RULES, DEFAULT_GUARDIAN_LOG } from "../lib/guardianRules";
-import { generateMnemonicWords, deriveFirstAddress } from "../lib/wallet";
+import { generateMnemonicWords, deriveFirstAddress, loadStoredMnemonic, saveMnemonic } from "../lib/wallet";
 
 const AppStateContext = createContext(null);
 
@@ -21,7 +21,6 @@ export function AppStateProvider({ children }) {
   const [sendRecipient, setSendRecipient] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendSuccess, setSendSuccess] = useState(false);
-  const [copyLabel, setCopyLabel] = useState("Tap to copy your receiving address");
 
   const [exitSecondsLeft, setExitSecondsLeft] = useState(47);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -29,10 +28,35 @@ export function AppStateProvider({ children }) {
 
   const [tooltipKey, setTooltipKey] = useState(null);
 
-  // Fallback so the Receive BTC screen always has a real address even when
-  // /app is reached directly, skipping onboarding. Onboarding overwrites this
-  // with its own derived address via setWalletAddress once it completes.
-  const [walletAddress, setWalletAddress] = useState(() => deriveFirstAddress(generateMnemonicWords()));
+  // Fallback so the Receive BTC screen (and real vault calls) always have a
+  // wallet even when /app is reached directly, skipping onboarding.
+  // Onboarding overwrites both with its own mnemonic via setWalletMnemonic /
+  // setWalletAddress once it completes. The mnemonic is what lets
+  // taurusSdk.js reconstruct the real signing wallet on demand for
+  // createVault/depositToVault — see lib/wallet.js.
+  //
+  // Persisted to localStorage (see lib/wallet.js) so a page reload reuses the
+  // same wallet instead of generating a new one and orphaning any address the
+  // user already funded from a faucet.
+  const [walletMnemonic, setWalletMnemonicState] = useState(() => {
+    const stored = loadStoredMnemonic();
+    if (stored) return stored;
+    const fresh = generateMnemonicWords();
+    saveMnemonic(fresh);
+    return fresh;
+  });
+  const [walletAddress, setWalletAddress] = useState(() => deriveFirstAddress(walletMnemonic));
+
+  function setWalletMnemonic(words) {
+    setWalletMnemonicState(words);
+    saveMnemonic(words);
+  }
+
+  // The real Vault object from @tachibtc/taurus-vault-core (p2tr address,
+  // node keys, etc.) — created once per session and reused so the vault
+  // address stays stable across Deposit/Send/Exit rather than re-deriving
+  // (and re-fetching validators for) a new one on every screen.
+  const [realVault, setRealVault] = useState(null);
 
   useEffect(() => {
     getVaultStatus().then(setVault);
@@ -74,11 +98,15 @@ export function AppStateProvider({ children }) {
     setSendSuccess(true);
   }
 
-  function copyAddress() {
-    if (vault?.receiveAddress) {
-      navigator.clipboard?.writeText(vault.receiveAddress).catch(() => {});
-    }
-    setCopyLabel("Copied to clipboard");
+  // Creates the real vault on first use and reuses it after — shared by
+  // Deposit (needs it to fund) and Transfer's Receive tab (needs its address
+  // to show as the VTXO receive address, since VTXOs aren't a separate
+  // address format — see PROGRESS.md 2026-08-15).
+  async function ensureRealVault() {
+    if (realVault) return realVault;
+    const created = await createRealVault(walletMnemonic);
+    setRealVault(created);
+    return created;
   }
 
   function confirmExit() {
@@ -110,8 +138,6 @@ export function AppStateProvider({ children }) {
     sendSuccess,
     doSend,
     resetSend,
-    copyLabel,
-    copyAddress,
 
     exitSecondsLeft,
     exitConfirmOpen,
@@ -123,8 +149,13 @@ export function AppStateProvider({ children }) {
     openTooltip: setTooltipKey,
     closeTooltip: () => setTooltipKey(null),
 
+    walletMnemonic,
+    setWalletMnemonic,
     walletAddress,
     setWalletAddress,
+    realVault,
+    setRealVault,
+    ensureRealVault,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
