@@ -100,15 +100,26 @@ export default function Deposit() {
             <p style={{ fontSize: 12, color: "#B3AA97", marginTop: 10 }}>signet test BTC — worthless, for demo only</p>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: "auto" }}>
-            {["0.0001", "0.001", "0.01"].map((amt) => (
-              <button
-                key={amt}
-                onClick={() => setDepositAmount(amt)}
-                style={{ background: "#F1EEE6", border: "none", borderRadius: 100, padding: "9px 16px", fontSize: 12.5, fontWeight: 600, color: "#5F5A4E" }}
-              >
-                {amt}
-              </button>
-            ))}
+            {["0.0001", "0.001", "0.01"].map((amt) => {
+              const active = depositAmount === amt;
+              return (
+                <button
+                  key={amt}
+                  onClick={() => setDepositAmount(amt)}
+                  style={{
+                    background: active ? "#1C2430" : "#F1EEE6",
+                    border: "none",
+                    borderRadius: 100,
+                    padding: "9px 16px",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: active ? "#FBF9F4" : "#5F5A4E",
+                  }}
+                >
+                  {amt}
+                </button>
+              );
+            })}
           </div>
           <button
             onClick={goToReview}
