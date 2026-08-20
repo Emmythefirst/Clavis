@@ -13,8 +13,16 @@ function truncate(address) {
 
 export default function Deposit() {
   const navigate = useNavigate();
-  const { depositStep, setDepositStep, depositAmount, setDepositAmount, walletMnemonic, realVault, ensureRealVault } =
-    useAppState();
+  const {
+    depositStep,
+    setDepositStep,
+    depositAmount,
+    setDepositAmount,
+    walletMnemonic,
+    realVault,
+    ensureRealVault,
+    refreshVaultBalance,
+  } = useAppState();
 
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState("");
@@ -45,6 +53,7 @@ export default function Deposit() {
     if (result.ok) {
       setDepositResult(result);
       setDepositStep(2);
+      refreshVaultBalance();
     } else {
       setDepositError(result);
     }

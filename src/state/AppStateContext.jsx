@@ -1,13 +1,12 @@
 /* eslint-disable react-refresh/only-export-components -- context Provider + its hook are intentionally colocated */
 import { createContext, useContext, useEffect, useState } from "react";
-import { getVaultStatus, getRecentActivity, createRealVault } from "../lib/taurusSdk";
+import { getRecentActivity, createRealVault, getVaultBalance } from "../lib/taurusSdk";
 import { DEFAULT_GUARDIAN_RULES, DEFAULT_GUARDIAN_LOG } from "../lib/guardianRules";
 import { generateMnemonicWords, deriveFirstAddress, loadStoredMnemonic, saveMnemonic } from "../lib/wallet";
 
 const AppStateContext = createContext(null);
 
 export function AppStateProvider({ children }) {
-  const [vault, setVault] = useState(null);
   const [activity, setActivity] = useState([]);
 
   const [guardianResolved, setGuardianResolved] = useState(false);
@@ -58,10 +57,30 @@ export function AppStateProvider({ children }) {
   // (and re-fetching validators for) a new one on every screen.
   const [realVault, setRealVault] = useState(null);
 
+  // null = not loaded yet (vaultLoading covers the distinction from "loaded
+  // and genuinely empty," which is a real 0n). See getVaultBalance in
+  // taurusSdk.js for why locked/spendable share this one number.
+  const [vaultBalanceSats, setVaultBalanceSats] = useState(null);
+  const [vaultLoading, setVaultLoading] = useState(true);
+
   useEffect(() => {
-    getVaultStatus().then(setVault);
     getRecentActivity().then(setActivity);
   }, []);
+
+  // Eagerly derive the real vault on app load (not just lazily from Deposit)
+  // so Home/Exit can show real balance for a returning user who already
+  // deposited in a previous session. Cheap and free — just a validator-quorum
+  // fetch + deterministic address derivation, no funds required.
+  useEffect(() => {
+    ensureRealVault().catch(() => setVaultLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ensureRealVault closes over walletMnemonic, which is only set once at this point
+  }, []);
+
+  useEffect(() => {
+    if (!realVault) return;
+    refreshVaultBalance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshVaultBalance is stable enough for this mount-on-vault-ready trigger
+  }, [realVault]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -109,13 +128,31 @@ export function AppStateProvider({ children }) {
     return created;
   }
 
+  // Queries the real balance for whatever vault currently exists. Called
+  // automatically once the vault is ready (see the [realVault] effect above)
+  // and again by Deposit right after a successful deposit, so Home reflects
+  // the change without needing a manual refresh.
+  async function refreshVaultBalance() {
+    if (!realVault) return;
+    setVaultLoading(true);
+    try {
+      const { totalSats } = await getVaultBalance(realVault);
+      setVaultBalanceSats(totalSats);
+    } catch {
+      // Transient network hiccup — leave the last known balance in place
+      // rather than clearing it to null/0, which would misreport a real
+      // balance as empty.
+    } finally {
+      setVaultLoading(false);
+    }
+  }
+
   function confirmExit() {
     setExitConfirmOpen(false);
     setExitDone(true);
   }
 
   const value = {
-    vault,
     activity,
     guardianResolved,
     vaultStatus,
@@ -156,6 +193,9 @@ export function AppStateProvider({ children }) {
     realVault,
     setRealVault,
     ensureRealVault,
+    vaultBalanceSats,
+    vaultLoading,
+    refreshVaultBalance,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

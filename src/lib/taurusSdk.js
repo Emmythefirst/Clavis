@@ -16,6 +16,7 @@ import {
   waitForVtxoCommit,
   getAccountNonce,
   toXOnly,
+  getLockedVtxos,
 } from "@tachibtc/taurus-vault-core";
 import { btcToSats } from "@tachibtc/taurus-wallet-aggregator";
 import { getFundingWallet, getUserSigner, getRpcProxyUrl, getWalletNetworkConfig, WALLET_CHAIN } from "./wallet";
@@ -125,15 +126,27 @@ export async function depositRealBtc(mnemonicWords, vault, amountBtc) {
   }
 }
 
-const MOCK_VAULT = {
-  lockedBtc: 0.0842,
-  lockedSats: 8420000,
-  spendableBtc: 0.0113,
-  spendableSats: 1130000,
-  timelockSecondsRemaining: 47,
-  receiveAddress: "vtxo1qxy2k...9f4a7c",
-};
+// Real vault balance: sums the unspent VTXOs Tachi's ledger has locked to
+// this vault. Deliberately reported as the SAME number for both "locked" and
+// "spendable" (see AppStateContext's vaultBalanceSats) — in the current
+// single-vault model there is no separate non-spendable pool; the entire
+// registered balance both backs the eventual unilateral exit AND is
+// instantly transferable via the cooperative leaf, simultaneously. That
+// distinction would only diverge with real partial-spend history, which
+// doesn't exist yet (Send isn't wired to the real SDK).
+export async function getVaultBalance(vault) {
+  const network = getWalletNetworkConfig();
+  const baseUrl = network.rpc.jsonRpc;
+  const result = await getLockedVtxos(vault.p2tr.address, { baseUrl });
+  const unspent = result.vtxos.filter((v) => !v.spent);
+  const totalSats = unspent.reduce((sum, v) => sum + v.amountSats, 0n);
+  return { totalSats, vtxos: unspent };
+}
 
+// The activity feed is still mocked — needs a real transaction history
+// source, not built yet (see PROGRESS.md). Exit's own countdown
+// (AppStateContext's exitSecondsLeft) is a separate, already-independent
+// demo timer, not sourced from here.
 const MOCK_ACTIVITY = [
   {
     id: "act-1",
@@ -150,10 +163,6 @@ const MOCK_ACTIVITY = [
     amountBtc: 0.0842,
   },
 ];
-
-export function getVaultStatus() {
-  return Promise.resolve(MOCK_VAULT);
-}
 
 export function getRecentActivity() {
   return Promise.resolve(MOCK_ACTIVITY);

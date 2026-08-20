@@ -36,6 +36,11 @@ export function getGuardianMeta(guardianResolved) {
       };
 }
 
+export function formatBtcFromSats(sats) {
+  if (sats == null) return "0.00000000";
+  return (Number(sats) / 1e8).toFixed(8);
+}
+
 export function formatCountdown(totalSeconds) {
   const mm = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const ss = (totalSeconds % 60).toString().padStart(2, "0");

@@ -1,14 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../state/AppStateContext";
-import { formatCountdown } from "../../lib/vaultDisplay";
+import { formatCountdown, formatBtcFromSats } from "../../lib/vaultDisplay";
 import { ChevronLeftIcon, LockIcon, CheckIcon } from "../icons";
 
 export default function Exit() {
   const navigate = useNavigate();
-  const { vault, exitSecondsLeft, exitConfirmOpen, setExitConfirmOpen, exitDone, confirmExit } = useAppState();
+  const { vaultBalanceSats, vaultLoading, exitSecondsLeft, exitConfirmOpen, setExitConfirmOpen, exitDone, confirmExit } =
+    useAppState();
 
-  if (!vault) return null;
+  if (vaultLoading && vaultBalanceSats == null) return null;
 
+  const balanceBtc = formatBtcFromSats(vaultBalanceSats);
   const isCountdown = exitSecondsLeft > 0 && !exitDone;
   const isReady = exitSecondsLeft <= 0 && !exitDone;
 
@@ -34,7 +36,7 @@ export default function Exit() {
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                 <span style={{ fontSize: 12.5, color: "#9C958A" }}>Vault balance</span>
                 <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600, color: "#1C2430" }}>
-                  {vault.lockedBtc} BTC
+                  {balanceBtc} BTC
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -83,7 +85,7 @@ export default function Exit() {
             <div style={{ width: "100%", background: "#FFFFFF", border: "1px solid #E7E1D2", borderRadius: 16, padding: 20, marginBottom: 24 }}>
               <div style={{ fontSize: 12, color: "#9C958A", marginBottom: 6 }}>Available to exit</div>
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 28, fontWeight: 600, color: "#1C2430" }}>
-                {vault.lockedBtc} BTC
+                {balanceBtc} BTC
               </div>
             </div>
             <button
@@ -113,7 +115,7 @@ export default function Exit() {
             </div>
             <div style={{ fontSize: 19, fontWeight: 700, color: "#1C2430", marginBottom: 8 }}>Exit complete</div>
             <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "#8A8478", margin: "0 0 22px", maxWidth: 280 }}>
-              Your {vault.lockedBtc} BTC is back on Bitcoin mainnet — fully yours, no counterparty involved.
+              Your {balanceBtc} BTC is back on Bitcoin mainnet — fully yours, no counterparty involved.
             </p>
             <div style={{ width: "100%", background: "#F1EEE6", borderRadius: 13, padding: "13px 14px", marginBottom: "auto" }}>
               <div style={{ fontSize: 11, color: "#9C958A", marginBottom: 4 }}>Transaction reference</div>
@@ -137,7 +139,7 @@ export default function Exit() {
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ fontSize: 13, color: "#9C958A" }}>Amount</span>
               <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13.5, fontWeight: 600, color: "#1C2430" }}>
-                {vault.lockedBtc} BTC
+                {balanceBtc} BTC
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>

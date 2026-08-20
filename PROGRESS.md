@@ -27,9 +27,13 @@ makes a decision worth remembering. Newest entries at the top of the Session Log
 - `/api/rpc-proxy` — a Vercel serverless function that works around a CORS gap on Tachi's hosted RPC (see 2026-08-15 entry)
 - `AppStateContext.ensureRealVault()` — shared "create the vault once, reuse everywhere" helper; both Deposit and Transfer's Receive tab call it instead of duplicating vault-creation logic
 - **Wallet mnemonic now persists to `localStorage`** (`lib/wallet.js`'s `loadStoredMnemonic`/`saveMnemonic`) — a page reload reuses the same wallet instead of silently generating a new random one and orphaning any address already funded from a faucet. Plaintext localStorage, deliberately: this is a signet demo wallet holding worthless test coins, not a claim about production key storage (same scoping principle as the PIN lock).
+- **Home and Exit now show real vault balance** — `getVaultBalance` (`lib/taurusSdk.js`) sums unspent VTXOs from `getLockedVtxos` against the real vault address. `AppStateContext` eagerly derives the real vault on app load (not just lazily from Deposit) so a returning user with an already-funded vault sees real numbers without visiting Deposit first, and exposes `refreshVaultBalance()`, which Deposit calls right after a successful deposit. "Locked" and "Spendable" deliberately show the *same* real number — in the current single-vault model the entire registered balance both backs the eventual unilateral exit and is instantly transferable, so showing two different numbers would be inventing a distinction that doesn't exist yet (would only diverge with real partial-spend history, which Send doesn't produce yet).
+- **New-user empty state on Home** — when the real balance is confirmed `0`, the balance cards, timelock card, Guardian banner, *and* the mocked activity feed are all replaced by a single "Nothing in your vault yet" prompt with a Deposit CTA, instead of showing mock data that has nothing to do with the real (empty) vault. This closes the exact gap a user hit live: real faucet funds landing with no visible change on Home, because Home was 100% mock and had no way to reflect it.
+- Deposit's amount-preset buttons (`0.0001`/`0.001`/`0.01`) now show which one is currently selected — previously had no active-state styling, so re-selecting after a failed/restarted deposit gave no visual confirmation the tap registered.
 
 **Mocked / not yet real:**
-- `lib/taurusSdk.js`'s `MOCK_VAULT`/`MOCK_ACTIVITY` — Home's balances, timelock countdown, and activity feed are still the original mock data, not wired to the real vault yet
+- Activity feed (shown once a real balance exists) is still mock data — needs a real transaction-history source, not built
+- Timelock countdown is still a 47-second demo timer, not derived from real chain height vs. the vault's 1008-block exit-leaf CSV
 - Send (VTXO transfer pipeline) and Exit (unilateral exit) — not wired to the real SDK yet. The transfer pipeline's client-side steps are now understood precisely (see 2026-08-15 "Two deposits" entry) but not yet implemented — needs a real registered `vtxoId` to test against, which needs a funded wallet first.
 - Guardian backend (no `/api` polling, no persistent storage) — stretch goal, foreground-only by design
 - HAT/RIP verification — stretch goal, not started
@@ -40,6 +44,18 @@ makes a decision worth remembering. Newest entries at the top of the Session Log
 ---
 
 ## Session Log
+
+### 2026-08-15 (continued 4) — Home wired to real balance; two UI bugs fixed
+
+Prompted by a user report after the previous session's fixes: "it's hard for me to know if the faucet funds show in my balance" — correctly diagnosed as Home never having been wired to anything real, so there was no way it *could* reflect a real deposit. Fixed properly rather than patching around it:
+
+- Added `getVaultBalance(vault)` to `lib/taurusSdk.js` — sums unspent VTXOs from `getLockedVtxos(vault.p2tr.address)`, a real read against the live daemon.
+- `AppStateContext` now derives the real vault eagerly on app load (previously only happened lazily, the first time a user visited Deposit or Transfer's Receive tab) and exposes `vaultBalanceSats`/`vaultLoading`/`refreshVaultBalance()`. Deposit calls `refreshVaultBalance()` right after a successful deposit so Home updates without a manual reload.
+- Removed the `MOCK_VAULT` object and the `vault` context field entirely — Home and Exit both read `vaultBalanceSats` now. "Locked" and "Spendable" intentionally show the same real number (see Status Snapshot above for why — no real distinction exists yet without partial-spend history).
+- Built the new-user empty state from the master briefing's backlog (§4b) as part of this, since it falls directly out of having a real "is the balance actually zero" signal: balance cards, timelock card, Guardian banner, and the mocked activity feed all replace themselves with a single "Nothing in your vault yet" + Deposit CTA when `vaultBalanceSats === 0n`. Initially left the mocked activity feed showing in the empty state (forgot it would read as fake data next to an honest "nothing yet" message) — caught it on the follow-up browser check before shipping, same "two things can independently contradict each other" shape as the earlier status-pill bug, so gated it behind the same `hasBalance` check.
+- Also fixed, from the same user report: the Deposit amount-preset buttons had no active/selected styling, so re-picking a value after restarting the flow gave no visual feedback that the tap registered (it did — `depositAmount` updated correctly, just invisibly). Added active-state background/color.
+
+Verified in-browser with a real, freshly-generated (unfunded) wallet: real vault derivation and real `getVaultBalance` query both complete on Home mount, correctly render the empty state (not stale mock numbers), the Deposit CTA navigates correctly, and Exit shows a real `0.00000000 BTC`. Zero console errors throughout. Have not yet re-verified against the *funded* wallet from the previous session (that one lives in the deployed site's browser storage, not this sandbox) — worth a quick check there to confirm the non-empty path renders the real non-zero balance correctly too.
 
 ### 2026-08-15 (continued 3) — Real faucet funds, real bugs, both fixed
 
