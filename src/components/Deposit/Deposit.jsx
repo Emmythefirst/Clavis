@@ -22,6 +22,7 @@ export default function Deposit() {
     realVault,
     ensureRealVault,
     refreshVaultBalance,
+    recordDeposit,
   } = useAppState();
 
   const [busy, setBusy] = useState(false);
@@ -53,6 +54,7 @@ export default function Deposit() {
     if (result.ok) {
       setDepositResult(result);
       setDepositStep(2);
+      recordDeposit(result.amountSats, result.txid);
       refreshVaultBalance();
     } else {
       setDepositError(result);

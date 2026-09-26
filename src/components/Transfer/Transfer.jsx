@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAppState } from "../../state/AppStateContext";
-import { CheckIcon, CopyIcon } from "../icons";
+import { CheckIcon, CopyIcon, AlertTriangleIcon, ShieldIcon } from "../icons";
 
 function truncate(address) {
   if (!address || address.length <= 24) return address;
@@ -16,10 +16,16 @@ export default function Transfer() {
     sendAmount,
     setSendAmount,
     sendSuccess,
+    sendBusy,
+    sendError,
+    sendTxHash,
     doSend,
     resetSend,
     realVault,
     ensureRealVault,
+    guardianReview,
+    confirmReviewedSend,
+    cancelReviewedSend,
   } = useAppState();
 
   const [vaultError, setVaultError] = useState(null);
@@ -78,7 +84,64 @@ export default function Transfer() {
       </div>
 
       {sendMode === "send" &&
-        (sendSuccess ? (
+        (guardianReview ? (
+          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBF1E1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <ShieldIcon size={18} color="#8A6420" />
+              </div>
+              <div>
+                <div style={{ fontSize: 14.5, fontWeight: 700, color: "#1C2430" }}>Guardian review</div>
+                <div style={{ fontSize: 12, color: "#9C958A" }}>
+                  This payment triggered {guardianReview.triggered.length} of your configured rules
+                </div>
+              </div>
+            </div>
+            <div style={{ background: "#FFFFFF", border: "1px solid #E7E1D2", borderRadius: 14, padding: "6px 16px", marginBottom: 20 }}>
+              {guardianReview.checks.map((check, i) => (
+                <div
+                  key={check.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    padding: "12px 0",
+                    borderBottom: i < guardianReview.checks.length - 1 ? "1px solid #EFEADD" : "none",
+                  }}
+                >
+                  {check.passed ? (
+                    <CheckIcon size={15} color="#0F6A5C" strokeWidth={2.4} />
+                  ) : (
+                    <AlertTriangleIcon size={15} color="#B1503B" />
+                  )}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1C2430" }}>{check.label}</div>
+                    <div style={{ fontSize: 11.5, color: "#9C958A", marginTop: 1 }}>{check.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: "#9C958A", margin: "0 0 auto", lineHeight: 1.5 }}>
+              Guardian only ever recommends — it's your call whether to continue.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 20 }}>
+              <button
+                onClick={confirmReviewedSend}
+                disabled={sendBusy}
+                style={{ width: "100%", background: sendBusy ? "#7C9C93" : "#0F6A5C", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700 }}
+              >
+                {sendBusy ? "Sending..." : "Send anyway"}
+              </button>
+              <button
+                onClick={cancelReviewedSend}
+                disabled={sendBusy}
+                style={{ width: "100%", background: "none", border: "1px solid #E7E1D2", color: "#8A8478", borderRadius: 14, padding: 15, fontSize: 13.5, fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : sendSuccess ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", paddingTop: 30 }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#EAF2EF", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
               <CheckIcon size={24} />
@@ -87,6 +150,11 @@ export default function Transfer() {
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "#8A8478", marginTop: 6 }}>
               {sendAmount} BTC · off-chain
             </div>
+            {sendTxHash && (
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: "#B3AA97", marginTop: 10, wordBreak: "break-all", padding: "0 10px" }}>
+                Tachi ledger tx: {sendTxHash}
+              </div>
+            )}
             <button
               onClick={resetSend}
               style={{ width: "100%", background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: "auto" }}
@@ -102,13 +170,17 @@ export default function Transfer() {
             <input
               value={sendRecipient}
               onChange={(e) => setSendRecipient(e.target.value)}
-              placeholder="Lightning address or VTXO invoice"
-              style={{ width: "100%", background: "#F1EEE6", border: "1px solid transparent", borderRadius: 13, padding: 14, fontSize: 13.5, color: "#1C2430", marginBottom: 20 }}
+              placeholder="Recipient vault address (tb1p...)"
+              style={{ width: "100%", background: "#F1EEE6", border: "1px solid transparent", borderRadius: 13, padding: 14, fontSize: 13.5, color: "#1C2430", marginBottom: 6 }}
             />
+            <p style={{ fontSize: 11.5, color: "#9C958A", margin: "0 0 20px", lineHeight: 1.5 }}>
+              VTXO transfers move vault-to-vault — paste another Tachi vault's P2TR address, not a
+              regular Bitcoin address.
+            </p>
             <label style={{ fontSize: 11.5, fontWeight: 700, color: "#9C958A", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
               Amount
             </label>
-            <div style={{ display: "flex", alignItems: "center", background: "#F1EEE6", borderRadius: 13, padding: 14, marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", background: "#F1EEE6", borderRadius: 13, padding: 14, marginBottom: 16 }}>
               <input
                 value={sendAmount}
                 onChange={(e) => setSendAmount(e.target.value)}
@@ -117,11 +189,26 @@ export default function Transfer() {
               />
               <span style={{ fontSize: 13, fontWeight: 600, color: "#9C958A" }}>BTC</span>
             </div>
+            {sendError && (
+              <p style={{ fontSize: 12.5, color: "#95392A", margin: "0 0 16px", lineHeight: 1.5 }}>{sendError}</p>
+            )}
             <button
               onClick={doSend}
-              style={{ width: "100%", background: "#0F6A5C", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: "auto" }}
+              disabled={sendBusy || !sendRecipient || !sendAmount}
+              style={{
+                width: "100%",
+                background: sendBusy ? "#7C9C93" : "#0F6A5C",
+                color: "#FBF9F4",
+                border: "none",
+                borderRadius: 14,
+                padding: 16,
+                fontSize: 14.5,
+                fontWeight: 700,
+                marginTop: "auto",
+                opacity: !sendRecipient || !sendAmount ? 0.6 : 1,
+              }}
             >
-              Send
+              {sendBusy ? "Sending..." : "Send"}
             </button>
           </div>
         ))}

@@ -66,14 +66,17 @@ export function getRpcProxyUrl(path) {
 }
 
 const STORAGE_KEY = "clavis.walletMnemonic";
+const VAULT_STORAGE_KEY = "clavis.walletVault";
 
 // Persists the funding wallet's mnemonic across reloads. Without this, a
 // fresh random wallet was generated on every page load, silently orphaning
 // any address a user had already funded from a faucet — real signet coins,
 // unreachable through the UI. Plaintext localStorage isn't real key security;
 // this is scoped to a signet demo wallet holding worthless test coins, not a
-// claim about how a production wallet should store secrets (same principle
-// as the PIN-lock scoping note in PROGRESS.md).
+// claim about how a production wallet should store secrets. Deliberately the
+// ONLY storage path when the user skips PIN setup — if they set a PIN
+// instead, saveEncryptedVault below is used and this plaintext copy is never
+// written (or is cleared if a prior skip had already written one).
 export function loadStoredMnemonic() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -86,10 +89,57 @@ export function loadStoredMnemonic() {
 export function saveMnemonic(words) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
+    // Plaintext and PIN-encrypted storage are mutually exclusive — a device
+    // has exactly one active wallet, protected exactly one way. Without this,
+    // an earlier PIN setup's encrypted blob could linger after a later
+    // "skip," and the app would show a stale, no-longer-relevant lock screen.
+    localStorage.removeItem(VAULT_STORAGE_KEY);
   } catch {
     // Storage unavailable (private browsing, quota) — non-fatal, this
     // session's wallet just won't survive a reload.
   }
+}
+
+export function clearStoredMnemonic() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // no-op
+  }
+}
+
+// PIN-encrypted wallet storage (see lib/walletCrypto.js for the actual
+// AES-GCM/PBKDF2 encryption). The blob itself is safe to store in plaintext
+// localStorage — it's ciphertext plus the public KDF parameters, not a
+// secret — the mnemonic only comes back out with the correct PIN.
+export function loadEncryptedVault() {
+  try {
+    const raw = localStorage.getItem(VAULT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveEncryptedVault(blob) {
+  try {
+    localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(blob));
+    localStorage.removeItem(STORAGE_KEY); // see the note in saveMnemonic above
+  } catch {
+    // no-op — see saveMnemonic
+  }
+}
+
+export function clearEncryptedVault() {
+  try {
+    localStorage.removeItem(VAULT_STORAGE_KEY);
+  } catch {
+    // no-op
+  }
+}
+
+export function hasEncryptedVault() {
+  return loadEncryptedVault() !== null;
 }
 
 export function generateMnemonicWords() {

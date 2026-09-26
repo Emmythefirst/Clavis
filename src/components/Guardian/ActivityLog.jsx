@@ -2,10 +2,13 @@ import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../state/AppStateContext";
 import { ChevronLeftIcon } from "../icons";
 
+// Real outcomes Guardian can log now (see AppStateContext.logGuardianReview):
+// a send that cleared every enabled check, one that triggered a rule but the
+// user sent anyway, and one the user canceled after seeing why it was flagged.
 const BADGE_STYLE = {
-  confirmed: { label: "Confirmed", bg: "#EAF2EF", color: "#0F6A5C" },
-  pending: { label: "Pending", bg: "#FBF1E1", color: "#8A6420" },
-  dismissed: { label: "Dismissed", bg: "#F1EEE6", color: "#8A8478" },
+  clean: { label: "Clean", bg: "#EAF2EF", color: "#0F6A5C" },
+  confirmed: { label: "Sent anyway", bg: "#FBF1E1", color: "#8A6420" },
+  cancelled: { label: "Canceled", bg: "#F1EEE6", color: "#8A8478" },
 };
 
 export default function ActivityLog() {
@@ -20,6 +23,12 @@ export default function ActivityLog() {
         </button>
         <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Guardian activity</span>
       </div>
+      {guardianLog.length === 0 && (
+        <p style={{ fontSize: 13, lineHeight: 1.55, color: "#9C958A", textAlign: "center", marginTop: 40 }}>
+          No Guardian activity yet — every payment you send will be reviewed against your configured rules and
+          logged here.
+        </p>
+      )}
       <div style={{ display: "flex", flexDirection: "column" }}>
         {guardianLog.map((entry, i) => {
           const badge = BADGE_STYLE[entry.status];

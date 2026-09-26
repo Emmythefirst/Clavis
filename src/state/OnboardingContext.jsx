@@ -6,7 +6,9 @@ import {
   deriveFirstAddress,
   buildVerifyChallenges,
   isValidMnemonic,
+  saveEncryptedVault,
 } from "../lib/wallet";
+import { encryptMnemonic } from "../lib/walletCrypto";
 
 const OnboardingContext = createContext(null);
 
@@ -98,7 +100,13 @@ export function OnboardingProvider({ children }) {
     return true;
   }
 
-  function submitLockPin(pin) {
+  // Encrypts the mnemonic under the confirmed PIN (AES-GCM, PBKDF2-derived
+  // key — see lib/walletCrypto.js) and persists ONLY the encrypted blob.
+  // Replaces the old version, which set a lockEnabled flag but still let
+  // AppLockScreen hand the mnemonic to AppStateContext's plaintext
+  // saveMnemonic path regardless — meaning the PIN gated nothing real. Now a
+  // PIN genuinely means the mnemonic cannot be recovered without it.
+  async function submitLockPin(pin) {
     if (lockStep === "enter") {
       setLockPin(pin);
       setLockStep("confirm");
@@ -108,6 +116,14 @@ export function OnboardingProvider({ children }) {
       setLockStep("enter");
       setLockPin("");
       return { done: false, error: "PINs didn't match — try again." };
+    }
+    try {
+      const blob = await encryptMnemonic(mnemonicWords, pin);
+      saveEncryptedVault(blob);
+    } catch {
+      setLockStep("enter");
+      setLockPin("");
+      return { done: false, error: "Couldn't set up your PIN on this device — try again." };
     }
     setLockEnabled(true);
     return { done: true };

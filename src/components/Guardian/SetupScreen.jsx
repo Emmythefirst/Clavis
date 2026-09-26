@@ -12,10 +12,12 @@ export default function SetupScreen() {
         <button onClick={() => navigate("/app")} style={{ background: "none", border: "none", padding: 4 }}>
           <ChevronLeftIcon />
         </button>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Configure Guardian</span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Spend Protection</span>
       </div>
       <p style={{ fontSize: 13, lineHeight: 1.55, color: "#8A8478", margin: "0 0 22px" }}>
-        Choose the rules Guardian watches for. It only ever recommends action — your one-tap confirmation is always required.
+        Choose which rules Guardian checks before a payment sends. It only ever recommends — your one-tap
+        confirmation is always required. Vault Watch, Guardian's other half, monitors the vault continuously and has
+        no rules to configure yet.
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

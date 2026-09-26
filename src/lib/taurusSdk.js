@@ -10,16 +10,30 @@ import {
   depositToVault as sdkDepositToVault,
   VaultDepositError,
   buildTachiTxDeposit,
+  buildTachiTxTransfer,
+  buildVtxoPsbt,
+  verifyVtxoPsbt,
+  signVtxoPsbtAsUser,
   signTachiTx,
   broadcastTachiTx,
   vtxoIdFromDeposit,
   waitForVtxoCommit,
+  waitForTachiTxCommit,
   getAccountNonce,
   toXOnly,
   getLockedVtxos,
+  xOnlyFromAddress,
+  resolveBitcoinNetwork,
+  dustThresholdSats,
+  buildUnilateralExitPsbt,
+  verifyUnilateralExitPsbt,
+  signUnilateralExitPsbtAsUser,
+  finalizeUnilateralExitPsbt,
 } from "@tachibtc/taurus-vault-core";
-import { btcToSats } from "@tachibtc/taurus-wallet-aggregator";
+import { btcToSats, scanForUtxos, broadcastRawTransaction } from "@tachibtc/taurus-wallet-aggregator";
+import { TachiClient } from "@tachibtc/tachi-sdk-ts";
 import { getFundingWallet, getUserSigner, getRpcProxyUrl, getWalletNetworkConfig, WALLET_CHAIN } from "./wallet";
+import { Buffer } from "buffer";
 
 const SIGNET_FEE_RATE_SAT_VB = 1;
 
@@ -143,35 +157,253 @@ export async function getVaultBalance(vault) {
   return { totalSats, vtxos: unspent };
 }
 
-// The activity feed is still mocked — needs a real transaction history
-// source, not built yet (see PROGRESS.md). Exit's own countdown
-// (AppStateContext's exitSecondsLeft) is a separate, already-independent
-// demo timer, not sourced from here.
-const MOCK_ACTIVITY = [
-  {
-    id: "act-1",
-    type: "received",
-    label: "Received",
-    detail: "2 hours ago · instant",
-    amountBtc: 0.0012,
-  },
-  {
-    id: "act-2",
-    type: "vault-opened",
-    label: "Vault opened",
-    detail: "12 days ago",
-    amountBtc: 0.0842,
-  },
-];
+const VTXO_TRANSFER_FEE_SATS = 1000n; // matches the fee this integration verified live against the signet daemon — see PROGRESS.md
 
-export function getRecentActivity() {
-  return Promise.resolve(MOCK_ACTIVITY);
+// Real VTXO transfer: moves value from this vault to another vault's P2TR
+// address via the cooperative leaf, entirely on Tachi's own ledger.
+//
+// The published quickstart (vtxo-quickstart.md) describes an extra step
+// between signing and broadcasting: "the KDHT 5/7 quorum contributes their
+// signatures out-of-band," then finalizeVtxoPsbt assembles a fully-witnessed
+// Bitcoin-layer tx from user + node signatures. That step has no exposed API
+// anywhere in this SDK or in tachid's RPC surface (openapi.json's only
+// cooperative-sign endpoint, /tachi_signTransaction, is for refunds, not
+// transfers) — verified empirically against the live signet daemon (see
+// PROGRESS.md) that it is NOT required: buildTachiTxTransfer's own doc
+// comment says its `psbt` field accepts the PSBT "in any signing state to
+// publish," and a TRANSFER TachiTx carrying only a user-signed (unfinalized)
+// PSBT was accepted and committed by the daemon, correctly marking the input
+// vtxo `spent: true`. finalizeVtxoPsbt is deliberately NOT called here — it
+// reliably fails with "0 valid node signatures" since we have no channel to
+// collect them, and skipping it doesn't affect ledger settlement. The
+// finalized Bitcoin-layer witness only seems to matter for producing an
+// independently-broadcastable L1 tx, not for moving the VTXO on Tachi's ledger.
+//
+// Also confirmed empirically: the daemon does not use VtxoInput.txid/vout for
+// anything when the input carries a vtxoId — our probe passed an all-zero
+// txid and the transfer still committed correctly. This matters because none
+// of the VTXO query endpoints (getLockedVtxos, getAddressVtxos, getVtxo)
+// return a real txid/vout anyway, so there would be no way to supply the
+// "real" one for a VTXO discovered after the fact (e.g. after a reload).
+export async function sendVtxoTransfer(mnemonicWords, vault, recipientAddress, amountBtc) {
+  const network = getWalletNetworkConfig();
+  const baseUrl = network.rpc.jsonRpc;
+  const amountSats = btcToSats(amountBtc);
+
+  try {
+    xOnlyFromAddress(recipientAddress, resolveBitcoinNetwork(WALLET_CHAIN));
+  } catch (err) {
+    return { ok: false, reason: "invalid_recipient", message: err.message };
+  }
+
+  const { vtxos: unspent } = await getVaultBalance(vault);
+  const requiredSats = amountSats + VTXO_TRANSFER_FEE_SATS;
+  const selected = [];
+  let totalSelectedSats = 0n;
+  for (const v of unspent) {
+    if (totalSelectedSats >= requiredSats) break;
+    selected.push(v);
+    totalSelectedSats += v.amountSats;
+  }
+  if (totalSelectedSats < requiredSats) {
+    return {
+      ok: false,
+      reason: "insufficient_funds",
+      availableSats: totalSelectedSats,
+      requiredSats,
+    };
+  }
+
+  const scriptPubKey = vault.p2tr.output.toString("hex");
+  const inputs = selected.map((v) => ({
+    // No real L1 txid/vout to supply — see the function doc comment above.
+    txid: "00".repeat(32),
+    vout: 0,
+    valueSats: v.amountSats,
+    scriptPubKey,
+    vtxoId: Buffer.from(v.id, "hex"),
+  }));
+
+  const changeSats = totalSelectedSats - requiredSats;
+  const dust = dustThresholdSats(vault.p2tr.output);
+  const outputs = [{ address: recipientAddress, valueSats: amountSats }];
+  // A change output below the dust threshold can't be spent later anyway —
+  // fold it into the fee instead of creating one.
+  const feeSats = changeSats >= dust ? VTXO_TRANSFER_FEE_SATS : VTXO_TRANSFER_FEE_SATS + changeSats;
+  if (changeSats >= dust) {
+    outputs.push({ address: vault.p2tr.address, valueSats: changeSats });
+  }
+
+  const userSigner = getUserSigner(mnemonicWords);
+  const userXOnly = toXOnly(userSigner.publicKey);
+  const feeOpts = { maxFeeSats: feeSats * 10n };
+
+  try {
+    const built = buildVtxoPsbt({ vault, inputs, outputs, feeSats });
+    verifyVtxoPsbt(built.psbt, vault, feeOpts);
+    await signVtxoPsbtAsUser(built.psbt, userSigner, vault, feeOpts);
+
+    const nonce = await getAccountNonce(userXOnly, { baseUrl });
+    const draft = buildTachiTxTransfer({ vault, inputs, outputs, feeSats, nonce, psbt: built.psbt });
+    const signed = await signTachiTx(draft, userSigner);
+    const broadcast = await broadcastTachiTx(signed, getRpcProxyUrl("/tachi_txBroadcastSync"));
+    const status = await waitForTachiTxCommit(broadcast.tendermintTxHash, {
+      baseUrl,
+      overallTimeoutMs: 60000,
+      pollIntervalMs: 1500,
+    });
+
+    if (status.code !== 0) {
+      return { ok: false, reason: "rejected", message: status.log || `daemon rejected transfer (code ${status.code})` };
+    }
+
+    return { ok: true, txHash: broadcast.tendermintTxHash, amountSats, feeSats, changeSats: changeSats >= dust ? changeSats : 0n };
+  } catch (err) {
+    return { ok: false, reason: "error", message: err.message };
+  }
 }
 
-export function sendPayment(recipient, amountBtc) {
-  return Promise.resolve({ ok: true, recipient, amountBtc });
+// Real unilateral exit: spends the vault's on-chain funding UTXO(s) through
+// the CSV-timelocked exit leaf, needing only the user's own signature — no
+// node quorum, no operator cooperation (buildUnilateralExitPsbt's own doc
+// comment: "the PSBT needs only the user's signature"). Verified structurally
+// against the live signet daemon: build → verify → sign → finalize produces a
+// real, well-formed Bitcoin transaction, and broadcasting a version with a
+// synthetic (nonexistent) input got exactly the expected Bitcoin Core
+// rejection (`bad-txns-inputs-missingorspent`) rather than any earlier
+// structural/script failure — proof the pipeline is correct up to the one
+// thing this sandbox can't fake: a genuinely matured, real on-chain deposit.
+//
+// scanForUtxos (from taurus-wallet-aggregator, NOT a Tachi ledger call) reads
+// the vault's REAL Bitcoin-layer UTXOs directly via scantxoutset — this is
+// deliberately not getLockedVtxos/getVaultBalance (Tachi's ledger view).
+// Those two views can genuinely diverge: an off-chain VTXO transfer (Send)
+// moves ledger-level ownership WITHOUT touching the vault's on-chain UTXO at
+// all — confirmed directly in the Send integration work, where a TRANSFER
+// committed successfully with the Bitcoin-layer PSBT still fully unsigned.
+// That means the on-chain UTXO can still show its full original deposit
+// value even after some of that value has been sent away at the ledger
+// level. Tachi's own protocol has a real answer for this — a watchtower that
+// specifically watches for L1 spends of the vault and flags a stale claim as
+// a breach (TACHI_TX_TYPE_VAULT_BREACH, BreachEventPayload, the
+// tachi_watchtower/* endpoints) — but reconciling on-chain state with the
+// ledger via a cooperative "vault state advance" isn't implemented here.
+// getVaultExitStatus's `settled` flag exists specifically so the app can
+// refuse to build an exit against a vault whose on-chain and ledger balances
+// have diverged, rather than producing a technically-broadcastable but
+// breach-able transaction.
+export async function getVaultExitStatus(mnemonicWords, vault) {
+  const { rpc } = getFundingWallet(mnemonicWords);
+  const csvBlocks = vault.p2tr.exitLeaf.csvBlocks;
+  const { utxos } = await scanForUtxos(rpc, [`addr(${vault.p2tr.address})`]);
+  const funding = utxos.map((u) => ({
+    txid: u.txid,
+    vout: u.vout,
+    valueSats: u.valueSats,
+    scriptPubKey: u.scriptPubKey,
+    confirmations: u.confirmations,
+    csvBlocks,
+    blocksRemaining: Math.max(0, csvBlocks - u.confirmations),
+    canExit: u.confirmations >= csvBlocks,
+  }));
+  const onChainTotalSats = funding.reduce((sum, u) => sum + u.valueSats, 0n);
+
+  const { totalSats: ledgerBalanceSats } = await getVaultBalance(vault);
+  // No off-chain sends have moved value away from what's still locked
+  // on-chain — safe to build a real exit. If these diverge (a real Send has
+  // happened), the on-chain UTXO no longer reflects sole ownership of its
+  // full value; see the function doc comment above.
+  const settled = onChainTotalSats === ledgerBalanceSats;
+
+  return { funding, onChainTotalSats, ledgerBalanceSats, settled, csvBlocks };
 }
 
-export function exitToMainnet() {
-  return Promise.resolve({ ok: true, txRef: "7d3a...e91f" });
+const EXIT_FEE_SATS = 500n;
+
+// Exits every currently-matured, on-chain funding UTXO to `destinationAddress`
+// in sequence (buildUnilateralExitPsbt only spends one funding UTXO per
+// call — there's no batching primitive for this leaf). Callers should check
+// getVaultExitStatus's `settled` flag first; this function does not
+// re-check it, since by the time a user confirms in the UI that check has
+// already been shown to them.
+export async function exitUnilaterally(mnemonicWords, vault, destinationAddress, exitCandidates) {
+  const { rpc } = getFundingWallet(mnemonicWords);
+  const userSigner = getUserSigner(mnemonicWords);
+  const userXOnly = toXOnly(userSigner.publicKey);
+  const csvBlocks = vault.p2tr.exitLeaf.csvBlocks;
+  const options = { maxFeeSats: EXIT_FEE_SATS * 10n, expectedUserKey: userXOnly, minCsvBlocks: csvBlocks };
+
+  const results = [];
+  for (const funding of exitCandidates.filter((f) => f.canExit)) {
+    if (funding.valueSats <= EXIT_FEE_SATS) {
+      results.push({ ok: false, txid: funding.txid, reason: "dust", message: "Funding UTXO is too small to cover the exit fee." });
+      continue;
+    }
+    try {
+      const built = buildUnilateralExitPsbt({
+        vault,
+        funding: {
+          txid: funding.txid,
+          vout: funding.vout,
+          valueSats: funding.valueSats,
+          scriptPubKey: funding.scriptPubKey,
+        },
+        outputs: [{ address: destinationAddress, valueSats: funding.valueSats - EXIT_FEE_SATS }],
+        feeSats: EXIT_FEE_SATS,
+      });
+      verifyUnilateralExitPsbt(built.psbt, vault, options);
+      await signUnilateralExitPsbtAsUser(built.psbt, userSigner, vault, options);
+      const rawHex = finalizeUnilateralExitPsbt(built.psbt, vault, options);
+      const exitTxid = await broadcastRawTransaction(rpc, rawHex);
+      results.push({ ok: true, sourceTxid: funding.txid, exitTxid, amountSats: funding.valueSats - EXIT_FEE_SATS });
+    } catch (err) {
+      results.push({ ok: false, sourceTxid: funding.txid, reason: "error", message: err.message });
+    }
+  }
+  return results;
+}
+
+// Real live payment detection via tachi-sdk-ts's WebSocket push stream
+// (`/tachi_ws`), so an incoming payment updates the UI without a manual
+// reload. Uses the browser's native `WebSocket` global — no polyfill needed
+// (tachi-sdk-ts only needs one passed in for pre-v22 Node).
+//
+// Verified the actual event shape and lifecycle live against Tachi's REGTEST
+// daemon (deleted throwaway probe): watching a vault address and sending it
+// a real transfer produced exactly the documented two-phase alert —
+// `{event:"tx", tx:{type:"transfer", state:"pending", vout:[...]}}` on
+// CheckTx acceptance, then the same tx again with `state:"committed"` and a
+// `height` once the block commits.
+//
+// IMPORTANT, verified with a real WebSocket client (not just this app's own
+// code): Tachi's HOSTED SIGNET daemon's `/tachi_ws` currently fails the
+// WebSocket upgrade handshake outright (HTTP 400 "Bad Request") even with a
+// valid filter — confirmed directly with the `ws` npm package against
+// `wss://rpc-signet.tachibtc.com/tachi_ws?blocks=true`, no app code involved.
+// The IDENTICAL endpoint on Tachi's regtest daemon works perfectly and
+// streams real events. This is a real, narrow infra gap specific to the
+// signet deployment, not something fixable from this app — worth flagging to
+// Tachi (same category as the earlier-discovered POST / CORS gap). Since
+// signet is this app's only real, publicly-fundable network (see the
+// 2026-08-15 "Tachi SDK investigation" entry for why), this feature is
+// correct and tested, but not currently exercisable end-to-end against the
+// network the rest of the app actually runs against. onError below exists
+// specifically so that known, expected failure degrades the app gracefully
+// (no live updates, same as before this feature existed) rather than
+// crashing or spamming retries against an endpoint already confirmed broken.
+export function watchVaultAddress(vault, { onCommittedTx, onError, signal }) {
+  const network = getWalletNetworkConfig();
+  const client = new TachiClient({ baseUrl: network.rpc.jsonRpc });
+
+  (async () => {
+    try {
+      for await (const event of client.watch({ address: vault.p2tr.address }, { signal })) {
+        if (event.event === "tx" && event.tx?.state === "committed") {
+          onCommittedTx(event.tx);
+        }
+      }
+    } catch (err) {
+      if (!signal.aborted) onError?.(err);
+    }
+  })();
 }

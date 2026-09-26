@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../state/AppStateContext";
-import { getStatusMeta, getTimelockHeadline, getGuardianMeta, formatBtcFromSats } from "../../lib/vaultDisplay";
+import { getStatusMeta, getTimelockHeadline, getGuardianMeta, getVaultWatchAlert, formatBtcFromSats } from "../../lib/vaultDisplay";
 import {
   LogoCheckIcon,
   LockIcon,
@@ -15,17 +15,20 @@ import {
   ArrowDownToLineIcon,
   ArrowUpRightIcon,
   ExitNavIcon,
-  ArrowUpCircleIcon,
   ReceiveIcon,
 } from "../icons";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { activity, guardianResolved, vaultStatus, vaultBalanceSats, vaultLoading, openTooltip } = useAppState();
+  const { activity, guardianAllClear, guardianLog, guardianRules, vaultWatchStatus, vaultStatus, vaultBalanceSats, vaultLoading, openTooltip } =
+    useAppState();
 
   const status = getStatusMeta(vaultStatus);
   const timelockHeadline = getTimelockHeadline(vaultStatus);
-  const guardian = getGuardianMeta(guardianResolved);
+  const vaultWatchAlert = getVaultWatchAlert(vaultWatchStatus);
+  const guardian = getGuardianMeta(guardianAllClear, guardianLog.length > 0, vaultWatchAlert);
+  const guardianOk = !vaultWatchAlert || vaultWatchAlert.level === "info";
+  const enabledRuleCount = guardianRules.filter((r) => r.enabled).length;
 
   const hasBalance = vaultBalanceSats != null && vaultBalanceSats > 0n;
   const balanceBtc = formatBtcFromSats(vaultBalanceSats);
@@ -148,7 +151,7 @@ export default function Home() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 30, height: 30, borderRadius: 9, background: guardian.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {guardianResolved ? (
+                  {guardianOk ? (
                     <CheckIcon size={14} color={guardian.iconColor} strokeWidth={2.4} />
                   ) : (
                     <AlertTriangleIcon color={guardian.iconColor} />
@@ -161,6 +164,18 @@ export default function Home() {
               </div>
               <ChevronRightIcon />
             </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 11, paddingTop: 11, borderTop: "1px solid #EBDCC0" }}>
+              <span style={{ fontSize: 11.5, color: "#7A7360" }}>Spend Protection</span>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#5F5A4E" }}>
+                {enabledRuleCount} rule{enabledRuleCount === 1 ? "" : "s"} active
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+              <span style={{ fontSize: 11.5, color: "#7A7360" }}>Vault Watch</span>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#5F5A4E" }}>
+                {vaultWatchStatus ? "Active" : "Not connected"}
+              </span>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 11, paddingTop: 11, borderTop: "1px solid #EBDCC0" }}>
               <button
                 onClick={() => navigate("/app/guardian/setup")}
@@ -217,51 +232,50 @@ export default function Home() {
           <div style={{ fontSize: 12, fontWeight: 700, color: "#9C958A", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
             Recent activity
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {activity.map((item, i) => (
-              <div
-                key={item.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "11px 0",
-                  borderBottom: i < activity.length - 1 ? "1px solid #EFEADD" : "none",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      background: item.type === "received" ? "#EAF2EF" : "#F1EEE6",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {item.type === "received" ? <ArrowUpCircleIcon /> : <LockIcon />}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1C2430" }}>{item.label}</div>
-                    <div style={{ fontSize: 11.5, color: "#9C958A" }}>{item.detail}</div>
-                  </div>
-                </div>
+          {activity.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: "#9C958A", lineHeight: 1.55, margin: 0 }}>
+              No activity recorded on this device yet — deposits and sends made from here will show up here.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {activity.map((item, i) => (
                 <div
+                  key={item.id}
                   style={{
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: item.type === "received" ? "#0F6A5C" : "#1C2430",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "11px 0",
+                    borderBottom: i < activity.length - 1 ? "1px solid #EFEADD" : "none",
                   }}
                 >
-                  {item.type === "received" ? "+" : ""}
-                  {item.amountBtc}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: "#F1EEE6",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {item.type === "sent" ? <ArrowUpRightIcon size={13} /> : <LockIcon />}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1C2430" }}>{item.label}</div>
+                      <div style={{ fontSize: 11.5, color: "#9C958A" }}>{item.detail}</div>
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600, color: "#1C2430" }}>
+                    {item.type === "sent" ? "-" : ""}
+                    {item.amountBtc}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
