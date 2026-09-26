@@ -1,7 +1,7 @@
 // Returns Vault Watch's last computed status for one vault — what the app
 // polls to show real always-on monitoring results. Pure read, no side
 // effects; the actual checking happens in register.js (immediate first
-// check) and check.js (the hourly cron).
+// check) and check.js (the daily cron).
 
 import { getVaultRecord } from "./_store.js";
 

@@ -1,10 +1,12 @@
 // The scheduled half of Vault Watch — Vercel Cron hits this on the schedule
-// in vercel.json (hourly by default; exit windows move in blocks/days, not
-// minutes, so this doesn't need to be frequent). Re-checks every registered
-// vault's real on-chain/ledger state and stores the result, so status.js has
-// something fresh to hand back the next time the app polls it — this is what
-// makes Guardian's Vault Watch genuinely "while you're not using the app,"
-// not just "when you happen to open it."
+// in vercel.json (once daily — Vercel's Hobby plan only allows one cron run
+// per day; a more frequent schedule needs the Pro plan. Exit windows move in
+// blocks/days, not minutes, so daily is genuinely fine, not just a plan-
+// forced compromise). Re-checks every registered vault's real on-chain/
+// ledger state and stores the result, so status.js has something fresh to
+// hand back the next time the app polls it — this is what makes Guardian's
+// Vault Watch genuinely "while you're not using the app," not just "when you
+// happen to open it."
 //
 // Protected by CRON_SECRET (Vercel's own convention: it sends
 // `Authorization: Bearer $CRON_SECRET` when that env var is set on the

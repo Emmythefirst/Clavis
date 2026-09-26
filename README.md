@@ -56,7 +56,7 @@ clavis/
     rpc-proxy.js        → CORS workaround for Tachi's hosted RPC (watch-only)
     guardian/
       register.js       → registers a vault's public info, runs an immediate check
-      check.js          → the hourly cron: re-checks every registered vault
+      check.js          → the daily cron: re-checks every registered vault
       status.js         → what the app polls for a vault's last known status
       _check.js         → the actual real checks (on-chain UTXOs, ledger balance)
       _store.js         → persistence (Upstash Redis, or in-memory for local dev)
@@ -96,7 +96,7 @@ Vault Watch needs somewhere to remember which vaults are registered between the 
 
 Without these set, Vault Watch still works (in-memory fallback), just doesn't survive a cold start in production — real checks run, but state resets frequently.
 
-The cron schedule itself lives in `vercel.json` (hourly by default).
+The cron schedule itself lives in `vercel.json` (once daily — Vercel's Hobby plan doesn't allow more frequent cron jobs; upgrade to Pro if you want finer-grained checks).
 
 ## Built By
 

@@ -5,8 +5,8 @@
 // signing — this route (and everything it calls) is watch-only.
 //
 // Runs an immediate first check on registration rather than waiting for the
-// next hourly cron tick, so the user sees real status right away instead of
-// an empty "not checked yet" state for up to an hour.
+// next daily cron tick, so the user sees real status right away instead of
+// an empty "not checked yet" state for up to a day.
 
 import { registerVault, saveCheckResult } from "./_store.js";
 import { checkVault } from "./_check.js";
