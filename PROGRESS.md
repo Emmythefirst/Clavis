@@ -54,6 +54,14 @@ makes a decision worth remembering. Newest entries at the top of the Session Log
 
 ## Session Log
 
+### 2026-09-26 (continued 8) — Root cause found for the git auto-deploy gap: a "sourceless" GitHub link
+
+The previous entry's git→Vercel auto-deploy mystery got root-caused. Querying Vercel's own API for the project (`GET /v9/projects/:id`) showed `"link": { "type": "github", "repo": "Clavis", ..., "sourceless": true }`. `sourceless: true` means Vercel has a record of which GitHub repo the project points at (enough for the dashboard to display it, enough for `vercel git connect` to report "already connected") but no working GitHub App installation actually backing it — so GitHub never had anywhere to deliver a push webhook to, and Vercel never had a way to pull source automatically. The CLI deploys worked the whole time because they upload local source directly, bypassing GitHub entirely — which is exactly why the workaround happened to work without anyone noticing the real cause.
+
+Fix (on GitHub's side, not Vercel's — nothing here to change in this repo): re-authorize the Vercel GitHub App at github.com/settings/installations and confirm it has access to this specific repo, not just installed-but-scoped-elsewhere. Interestingly, right around when this was fixed, a deployment for the *already-pushed* `ee35e92` commit appeared on its own (`source: "git"`, ~30s before the manual CLI deploy from the previous entry) — consistent with a backlogged webhook finally being delivered once the App had real access, rather than the integration being fundamentally broken the whole time.
+
+This commit is the real test: a plain push with no CLI deploy afterward. If a `source: "git"` deployment shows up for it on its own, the fix holds.
+
 ### 2026-09-26 (continued 7) — First real deployment of this session's work; two real, unrelated deploy blockers found and fixed
 
 After pushing the Send/PIN/Guardian/Exit/Vault-Watch commit (`5fbca84`) and the user adding Upstash + `CRON_SECRET` env vars in Vercel, the deployed app's `/api/guardian/*` routes returned Vercel's own `404 NOT_FOUND` — not our JSON 404, meaning the routes weren't deployed at all. Worth recording precisely how this got diagnosed, since both root causes were real and neither was where the investigation started.
