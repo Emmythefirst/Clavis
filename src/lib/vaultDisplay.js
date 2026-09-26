@@ -32,6 +32,15 @@ export function getTimelockHeadline(vaultStatus) {
 export function getVaultWatchAlert(vaultWatchStatus) {
   const check = vaultWatchStatus?.lastCheck;
   if (!check) return null;
+  if (check.breachDetected) {
+    const anomalous = check.breaches?.some((b) => b.classification === "anomalous");
+    return {
+      level: "danger",
+      message: anomalous
+        ? "Tachi's watchtower flagged an anomalous spend of your vault's funding outpoint — this needs your attention now."
+        : "Tachi's watchtower detected a stale/replayed state spend of your vault's funding outpoint.",
+    };
+  }
   if (!check.settled) {
     return {
       level: "warning",
@@ -51,6 +60,15 @@ export function getVaultWatchAlert(vaultWatchStatus) {
 // "no sends yet" if there haven't been any) — see AppStateContext.
 // vaultWatchAlert is getVaultWatchAlert's result, or null.
 export function getGuardianMeta(guardianAllClear, hasHistory, vaultWatchAlert) {
+  if (vaultWatchAlert?.level === "danger") {
+    return {
+      bg: "#FBE9E4",
+      iconBg: "#F3CFC5",
+      iconColor: "#95392A",
+      title: "Guardian: breach detected",
+      subtitle: vaultWatchAlert.message,
+    };
+  }
   if (vaultWatchAlert?.level === "warning" || (hasHistory && !guardianAllClear)) {
     return {
       bg: "#FBF1E1",

@@ -109,6 +109,19 @@ export default function RecommendationScreen() {
                 label="On-chain balance matches spendable balance"
                 detail={check.settled ? undefined : "A real Send has diverged the two — see Exit for details"}
               />
+              {check.fundingCount > 0 && (
+                <CheckRow
+                  ok={!check.breachDetected}
+                  label={check.breachDetected ? "Watchtower flagged a spend" : "No breach flagged by Tachi's watchtower"}
+                  detail={
+                    check.breachDetected
+                      ? vaultWatchAlert?.message
+                      : check.breachCheckOk === false
+                        ? "Last breach check failed — will retry"
+                        : undefined
+                  }
+                />
+              )}
               <CheckRow
                 ok
                 label={

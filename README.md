@@ -23,7 +23,7 @@ But that guarantee only helps if you're actually paying attention. Most people w
 - **A real, working unilateral exit flow** — once your timelock clears, build/sign/broadcast a real Bitcoin transaction through the exit leaf, no counterparty required
 - **Guardian** — one security layer, two surfaces:
   - **Spend Protection** checks a payment against your configured rules (spending limit, daily limit, new recipient, large fraction of balance) the moment you try to send it — on-device, real-time, never blocks on its own
-  - **Vault Watch** monitors the vault continuously via a real backend (registration + a scheduled check against live on-chain/ledger state), independent of whether the app is open
+  - **Vault Watch** monitors the vault continuously via a real backend (registration + a scheduled check against live on-chain/ledger state, plus Tachi's own watchtower breach-receipt endpoint), independent of whether the app is open
 - **Real PIN encryption** — AES-GCM + PBKDF2, native Web Crypto, no plaintext key material once a PIN is set
 
 ## Current Status
@@ -36,7 +36,7 @@ This started as a hackathon-in-progress submission; most of what was originally 
 - Real activity feed (deposits + sends), real PIN encryption, live payment detection (code-complete; see PROGRESS.md for a real infra gap currently blocking it on signet specifically)
 
 **Not yet built (deliberately, see PROGRESS.md for why):**
-- Cooperative vault-state advance (needed so a full exit stays available after a real Send has partially spent a vault)
+- Cooperative vault-state advance (needed so a full exit stays available after a real Send has partially spent a vault) — confirmed blocked on Tachi's own daemon, not just unbuilt here: the transaction type exists in the SDK but is "declared but unwired" server-side
 - HAT/RIP on-chain balance verification — stretch goal
 - Push notifications for Vault Watch alerts — the backend computes and stores real alerts; delivery today is "check the app," not a push to your phone
 
