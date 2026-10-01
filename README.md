@@ -33,10 +33,10 @@ This started as a hackathon-in-progress submission; most of what was originally 
 **Real and working:**
 - Full wallet flow: onboarding (create/import, real BIP39), Deposit, Send, Receive, Exit — all wired to Tachi's live signet daemon, not a mock
 - Guardian: real Spend Protection rule evaluation, real Vault Watch backend (see setup below)
-- Real activity feed (deposits + sends), real PIN encryption, live payment detection (code-complete; see PROGRESS.md for a real infra gap currently blocking it on signet specifically)
+- Real activity feed (deposits + sends), real PIN encryption, real live payment detection (WebSocket push from Tachi's signet daemon — see PROGRESS.md for the infra gap this exposed on Tachi's side and its fix)
 
 **Not yet built (deliberately, see PROGRESS.md for why):**
-- Cooperative vault-state advance (needed so a full exit stays available after a real Send has partially spent a vault) — confirmed blocked on Tachi's own daemon, not just unbuilt here: the transaction type exists in the SDK but is "declared but unwired" server-side
+- Cooperative vault-state advance (needed so a full exit stays available after a real Send has partially spent a vault) — confirmed out of scope by Tachi directly: the daemon now accepts the transaction, but it only records a bare owner-signed state number with no balance or lifecycle semantics, and the SDK has no builder for it yet
 - HAT/RIP on-chain balance verification — stretch goal
 - Push notifications for Vault Watch alerts — the backend computes and stores real alerts; delivery today is "check the app," not a push to your phone
 

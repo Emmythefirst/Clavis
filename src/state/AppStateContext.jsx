@@ -252,12 +252,13 @@ export function AppStateProvider({ children }) {
 
   // Live payment detection (see watchVaultAddress's doc comment in
   // taurusSdk.js) — refreshes real state the moment a committed transaction
-  // touches this vault, instead of only on manual navigation. Known not to
-  // connect against Tachi's hosted SIGNET daemon today (a confirmed infra gap
-  // on their side, not this app's), so onError just logs once rather than
-  // retrying against an endpoint already known to reject the handshake — the
-  // rest of the app is entirely unaffected either way, since every screen
-  // that shows balance/exit status already refreshes on its own mount.
+  // touches this vault, instead of only on manual navigation. Confirmed
+  // working against Tachi's hosted SIGNET daemon as of 2026-09-30 (Tachi
+  // fixed a reverse-proxy config that was dropping the WebSocket upgrade —
+  // see PROGRESS.md). onError is kept as a simple log rather than a retry
+  // loop regardless: a dropped connection here degrades to exactly the
+  // app's pre-existing manual-refresh behavior, since every screen that
+  // shows balance/exit status already refreshes on its own mount.
   useEffect(() => {
     if (!realVault) return;
     const controller = new AbortController();

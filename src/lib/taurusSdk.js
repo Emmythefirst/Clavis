@@ -375,22 +375,21 @@ export async function exitUnilaterally(mnemonicWords, vault, destinationAddress,
 // CheckTx acceptance, then the same tx again with `state:"committed"` and a
 // `height` once the block commits.
 //
-// IMPORTANT, verified with a real WebSocket client (not just this app's own
-// code): Tachi's HOSTED SIGNET daemon's `/tachi_ws` currently fails the
-// WebSocket upgrade handshake outright (HTTP 400 "Bad Request") even with a
-// valid filter — confirmed directly with the `ws` npm package against
-// `wss://rpc-signet.tachibtc.com/tachi_ws?blocks=true`, no app code involved.
-// The IDENTICAL endpoint on Tachi's regtest daemon works perfectly and
-// streams real events. This is a real, narrow infra gap specific to the
-// signet deployment, not something fixable from this app — worth flagging to
-// Tachi (same category as the earlier-discovered POST / CORS gap). Since
-// signet is this app's only real, publicly-fundable network (see the
-// 2026-08-15 "Tachi SDK investigation" entry for why), this feature is
-// correct and tested, but not currently exercisable end-to-end against the
-// network the rest of the app actually runs against. onError below exists
-// specifically so that known, expected failure degrades the app gracefully
-// (no live updates, same as before this feature existed) rather than
-// crashing or spamming retries against an endpoint already confirmed broken.
+// Tachi's HOSTED SIGNET daemon's `/tachi_ws` used to fail the WebSocket
+// upgrade handshake outright (HTTP 400) — confirmed directly with the `ws`
+// npm package, no app code involved, and reported to Tachi. Per Tachi (Telegram,
+// 2026-09-30): this was a reverse-proxy config in front of rpc-signet.tachibtc.com
+// not forwarding the WebSocket upgrade headers (regtest's proxy already had
+// them, which is why that endpoint always worked). They've since fixed the
+// signet proxy config — re-verified independently the same way the break was
+// found, with a raw `ws` client against
+// `wss://rpc-signet.tachibtc.com/tachi_ws?blocks=true`: handshake succeeds,
+// real live block events stream. This feature is now fully real end-to-end
+// against the network the rest of the app runs on, not just regtest. onError
+// below is kept anyway (not removed) because a dropped WebSocket for any
+// other reason (network blip, server restart) should still degrade
+// gracefully to the app's pre-existing manual-refresh behavior rather than
+// crash or retry-storm.
 export function watchVaultAddress(vault, { onCommittedTx, onError, signal }) {
   const network = getWalletNetworkConfig();
   const client = new TachiClient({ baseUrl: network.rpc.jsonRpc });
