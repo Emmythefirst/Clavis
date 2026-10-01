@@ -15,9 +15,17 @@
 // data and re-run checks (never signs, never spends), but it could still be
 // used to waste function invocations. Set CRON_SECRET before relying on this
 // in production; logged loudly if it's missing so that's hard to miss.
+//
+// Also where push notifications actually fire (see _notify.js) — this is the
+// one place in the app that sees both a vault's previous and newly-computed
+// check result in the same request, which is exactly what "did anything
+// change" requires. register.js's own immediate first check never notifies,
+// correctly: there's no previous check for a brand-new registration to have
+// transitioned from.
 
-import { listRegisteredAddresses, getVaultRecord, saveCheckResult } from "./_store.js";
+import { listRegisteredAddresses, getVaultRecord, saveCheckResult, removePushSubscription } from "./_store.js";
 import { checkVault } from "./_check.js";
+import { notifyIfTransitioned } from "./_notify.js";
 
 export default async function handler(req, res) {
   if (process.env.CRON_SECRET) {
@@ -47,7 +55,12 @@ export default async function handler(req, res) {
       try {
         const result = await checkVault({ address, csvBlocks: record.csvBlocks, network: record.network });
         await saveCheckResult(address, result);
-        results.push({ address, ok: true, ...result });
+        // Compares against the check this loop just fetched (record.lastCheck),
+        // not the one it just wrote — that's the entire "did anything really
+        // change" signal a push notification depends on.
+        const { sent, staleEndpoints } = await notifyIfTransitioned(record.lastCheck, result, record.pushSubscriptions);
+        for (const endpoint of staleEndpoints) await removePushSubscription(address, endpoint);
+        results.push({ address, ok: true, notified: sent, ...result });
       } catch (err) {
         results.push({ address, ok: false, error: err.message });
       }

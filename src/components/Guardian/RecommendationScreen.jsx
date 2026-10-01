@@ -23,7 +23,19 @@ function CheckRow({ ok, label, detail }) {
 
 export default function RecommendationScreen() {
   const navigate = useNavigate();
-  const { guardianLog, guardianAllClear, guardianRules, vaultWatchStatus, vaultWatchError } = useAppState();
+  const {
+    guardianLog,
+    guardianAllClear,
+    guardianRules,
+    vaultWatchStatus,
+    vaultWatchError,
+    pushSupported,
+    pushSubscribed,
+    pushBusy,
+    pushError,
+    enablePush,
+    disablePush,
+  } = useAppState();
 
   const enabledRules = guardianRules.filter((r) => r.enabled);
   const lastEntry = guardianLog[0];
@@ -139,6 +151,35 @@ export default function RecommendationScreen() {
                       : `${check.blocksRemaining} blocks remaining`
                 }
               />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTop: "1px solid #E7E1D2" }}>
+                <div style={{ minWidth: 0, paddingRight: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1C2430" }}>Push notifications</div>
+                  <div style={{ fontSize: 11.5, color: "#9C958A", marginTop: 1 }}>
+                    {!pushSupported
+                      ? "Not supported in this browser"
+                      : pushError || "Get notified the moment something changes, even with the app closed"}
+                  </div>
+                </div>
+                <button
+                  disabled={!pushSupported || pushBusy}
+                  onClick={() => (pushSubscribed ? disablePush() : enablePush())}
+                  style={{
+                    flexShrink: 0,
+                    width: 40,
+                    height: 24,
+                    borderRadius: 100,
+                    background: pushSubscribed ? "#0F6A5C" : "#E7E1D2",
+                    border: "none",
+                    padding: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: pushSubscribed ? "flex-end" : "flex-start",
+                    opacity: !pushSupported || pushBusy ? 0.5 : 1,
+                  }}
+                >
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- context Provider + its hook are intentionally colocated */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { createRealVault, getVaultBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress } from "../lib/taurusSdk";
+import { isPushSupported, getExistingPushSubscription, enablePushNotifications, disablePushNotifications } from "../lib/pushNotifications";
 import { DEFAULT_GUARDIAN_RULES, evaluateGuardianRules } from "../lib/guardianRules";
 import {
   loadSendHistory,
@@ -496,6 +497,51 @@ export function AppStateProvider({ children }) {
     }
   }
 
+  // Push notifications for Vault Watch's real alerts (see api/guardian/_notify.js)
+  // — opt-in, same "Guardian recommends, never acts on its own" principle as
+  // everything else here: nothing subscribes a device without the user
+  // explicitly asking. pushSubscribed reflects the BROWSER's own actual
+  // subscription state (re-checked on load), not just in-session UI state,
+  // so a toggle left on from a previous visit shows correctly without the
+  // user having to re-enable it.
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState(null);
+  const pushSupported = isPushSupported();
+
+  useEffect(() => {
+    if (!pushSupported) return;
+    getExistingPushSubscription()
+      .then((sub) => setPushSubscribed(!!sub))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pushSupported is a static browser-capability check, not state; this is a real run-once-on-mount effect
+  }, []);
+
+  async function enablePush() {
+    if (!realVault) return;
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      await enablePushNotifications(realVault.p2tr.address);
+      setPushSubscribed(true);
+    } catch (err) {
+      setPushError(err.message);
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function disablePush() {
+    if (!realVault) return;
+    setPushBusy(true);
+    try {
+      await disablePushNotifications(realVault.p2tr.address);
+      setPushSubscribed(false);
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
   async function confirmExit() {
     if (!exitStatus) return;
     setExitError(null);
@@ -564,6 +610,13 @@ export function AppStateProvider({ children }) {
 
     vaultWatchStatus,
     vaultWatchError,
+
+    pushSupported,
+    pushSubscribed,
+    pushBusy,
+    pushError,
+    enablePush,
+    disablePush,
 
     tooltipKey,
     openTooltip: setTooltipKey,
