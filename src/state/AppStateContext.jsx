@@ -275,16 +275,6 @@ export function AppStateProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshVaultBalance/refreshExitStatus are stable enough for this vault-ready subscription
   }, [realVault]);
 
-  // Real timelock/chain-height-derived vault status isn't built yet (the
-  // countdown on Exit is still a demo timer — see PROGRESS.md), so this
-  // stays a fixed placeholder rather than being driven by an unrelated
-  // signal. It used to be derived from the old fake "confirm the liquidity
-  // scenario" flow; now that Guardian evaluates real Sends instead of a
-  // scripted incident, tying vault-level health to spending-guardrail
-  // outcomes would conflate two different concerns that happen to share a
-  // banner today.
-  const vaultStatus = "healthy";
-
   // Whether the most recent real Guardian review found anything — the honest
   // replacement for the old guardianResolved boolean. No entries yet, or the
   // last send cleared every enabled check: "all clear." The last send
@@ -535,7 +525,6 @@ export function AppStateProvider({ children }) {
     activity,
     recordDeposit,
     guardianAllClear,
-    vaultStatus,
     guardianRules,
     guardianLog,
     toggleGuardianRule,

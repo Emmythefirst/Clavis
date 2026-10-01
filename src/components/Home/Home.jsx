@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../state/AppStateContext";
-import { getStatusMeta, getTimelockHeadline, getGuardianMeta, getVaultWatchAlert, formatBtcFromSats } from "../../lib/vaultDisplay";
+import { getStatusMeta, getVaultStatusBucket, getTimelockHeadline, getGuardianMeta, getVaultWatchAlert, formatBtcFromSats } from "../../lib/vaultDisplay";
 import {
   LogoCheckIcon,
   LockIcon,
@@ -20,11 +20,12 @@ import {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { activity, guardianAllClear, guardianLog, guardianRules, vaultWatchStatus, vaultStatus, vaultBalanceSats, vaultLoading, openTooltip } =
+  const { activity, guardianAllClear, guardianLog, guardianRules, vaultWatchStatus, exitStatus, vaultBalanceSats, vaultLoading, openTooltip } =
     useAppState();
 
-  const status = getStatusMeta(vaultStatus);
-  const timelockHeadline = getTimelockHeadline(vaultStatus);
+  const breachDetected = vaultWatchStatus?.lastCheck?.breachDetected ?? false;
+  const status = getStatusMeta(getVaultStatusBucket(exitStatus, breachDetected));
+  const timelockHeadline = getTimelockHeadline(exitStatus, breachDetected);
   const vaultWatchAlert = getVaultWatchAlert(vaultWatchStatus);
   const guardian = getGuardianMeta(guardianAllClear, guardianLog.length > 0, vaultWatchAlert);
   const guardianOk = !vaultWatchAlert || vaultWatchAlert.level === "info";

@@ -1,21 +1,35 @@
 const STATUS_META = {
   healthy: { label: "Vault healthy", dot: "#0F6A5C", bg: "#EAF2EF", text: "#0F6A5C", iconBg: "#EAF2EF" },
-  attention: { label: "Needs attention", dot: "#B8842E", bg: "#FBF1E1", text: "#8A6420", iconBg: "#FBF1E1" },
+  attention: { label: "Timelock counting down", dot: "#B8842E", bg: "#FBF1E1", text: "#8A6420", iconBg: "#FBF1E1" },
   action: { label: "Action recommended", dot: "#B1503B", bg: "#FBE9E4", text: "#95392A", iconBg: "#FBE9E4" },
 };
 
-const TIMELOCK_HEADLINE = {
-  healthy: "Unlocks in 6d 14h",
-  attention: "Entering risk window in 3 days",
-  action: "Action recommended on your vault",
-};
-
-export function getStatusMeta(vaultStatus) {
-  return STATUS_META[vaultStatus] || STATUS_META.attention;
+// Home's top-level status pill, now driven by the exact same real signals
+// Exit's own 4-state logic already uses (exitStatus.settled/funding/canExit
+// from getVaultExitStatus — see Exit.jsx) plus Vault Watch's breach signal,
+// rather than a separate, independently-invented notion of "vault health."
+// `breachDetected` takes priority since a flagged spend is more urgent than
+// a routine timelock still counting down.
+export function getVaultStatusBucket(exitStatus, breachDetected) {
+  if (breachDetected) return "action";
+  if (!exitStatus || exitStatus.funding.length === 0) return "healthy";
+  if (!exitStatus.settled) return "action";
+  const allReady = exitStatus.funding.every((f) => f.canExit);
+  return allReady ? "healthy" : "attention";
 }
 
-export function getTimelockHeadline(vaultStatus) {
-  return TIMELOCK_HEADLINE[vaultStatus] || TIMELOCK_HEADLINE.attention;
+export function getStatusMeta(bucket) {
+  return STATUS_META[bucket] || STATUS_META.attention;
+}
+
+export function getTimelockHeadline(exitStatus, breachDetected) {
+  if (breachDetected) return "Watchtower flagged a spend — see Guardian";
+  if (!exitStatus || exitStatus.funding.length === 0) return "No deposit yet";
+  if (!exitStatus.settled) return "Action recommended — see Exit for details";
+  const allReady = exitStatus.funding.every((f) => f.canExit);
+  if (allReady) return "Ready to exit any time";
+  const blocksRemaining = Math.max(...exitStatus.funding.map((f) => f.blocksRemaining));
+  return `Unlocks in ${estimateTimeFromBlocks(blocksRemaining)}`;
 }
 
 // Guardian is one security layer with two surfaces — Spend Protection
