@@ -30,6 +30,7 @@ export default function Home() {
     vaultLoading,
     vaultBalanceError,
     refreshVaultBalance,
+    fundingWalletBalanceSats,
     openTooltip,
   } = useAppState();
 
@@ -53,6 +54,11 @@ export default function Home() {
   const heroSats = diverged ? exitStatus.onChainTotalSats : vaultBalanceSats ?? 0n;
   const heroBtc = formatBtcFromSats(heroSats);
   const heroSatsLabel = heroSats.toLocaleString();
+  // BTC sent to the funding address but not yet moved into the vault —
+  // real, but previously invisible anywhere in the UI (getFundingWalletBalance
+  // existed, nothing called it). Shown only when nonzero so a vault-only
+  // user never sees an extra, perpetually-zero card.
+  const hasFundingWalletBalance = fundingWalletBalanceSats != null && fundingWalletBalanceSats > 0n;
 
   if (vaultLoading && vaultBalanceSats == null) {
     return (
@@ -167,6 +173,38 @@ export default function Home() {
         )}
       </div>
 
+      {hasFundingWalletBalance && (
+        <button
+          onClick={() => navigate("/app/deposit")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            background: "#FFFFFF",
+            border: "1px solid #E7E1D2",
+            borderRadius: 16,
+            padding: "14px 16px",
+            marginBottom: 14,
+            textAlign: "left",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#9C958A", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
+              BTC in wallet
+            </div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: "#1C2430" }}>
+              {fundingWalletBalanceSats.toLocaleString()} sats
+            </div>
+            <div style={{ fontSize: 11.5, color: "#9C958A", marginTop: 2 }}>Ready to deposit into your vault</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#1C2430" }}>Deposit</span>
+            <ChevronRightIcon size={15} color="#B8842E" />
+          </div>
+        </button>
+      )}
+
       <div style={{ background: guardian.bg, borderRadius: 16, padding: "14px 16px", marginBottom: 14, transition: "background 0.3s" }}>
         <button
           onClick={() => navigate("/app/guardian")}
@@ -239,7 +277,7 @@ export default function Home() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 28, marginBottom: 24 }}>
         <button onClick={() => navigate("/app/receive")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 4 }}>
           <ReceiveIcon size={14} />
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: "#7A7360" }}>Receive</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: "#7A7360" }}>Fund wallet</span>
         </button>
         <button onClick={() => navigate("/app/exit")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 4 }}>
           <ExitNavIcon size={14} color="#7A7360" />

@@ -26,7 +26,7 @@ export default function ReceiveBTC() {
         <button onClick={() => navigate("/app")} style={{ background: "none", border: "none", padding: 4 }}>
           <ChevronLeftIcon />
         </button>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Receive BTC</span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Fund Wallet</span>
       </div>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "#9C958A", margin: "0 0 22px" }}>
         Your standard Bitcoin address on signet (test network) — for receiving from an exchange,

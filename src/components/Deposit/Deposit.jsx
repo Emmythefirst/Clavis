@@ -22,6 +22,7 @@ export default function Deposit() {
     realVault,
     ensureRealVault,
     refreshVaultBalance,
+    refreshFundingWalletBalance,
     recordDeposit,
   } = useAppState();
 
@@ -56,6 +57,7 @@ export default function Deposit() {
       setDepositStep(2);
       recordDeposit(result.amountSats, result.txid);
       refreshVaultBalance();
+      refreshFundingWalletBalance();
     } else {
       setDepositError(result);
     }

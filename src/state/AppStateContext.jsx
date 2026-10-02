@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- context Provider + its hook are intentionally colocated */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { createRealVault, getVaultBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress } from "../lib/taurusSdk";
+import { createRealVault, getVaultBalance, getFundingWalletBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress } from "../lib/taurusSdk";
 import { isPushSupported, getExistingPushSubscription, enablePushNotifications, disablePushNotifications } from "../lib/pushNotifications";
 import { DEFAULT_GUARDIAN_RULES, evaluateGuardianRules } from "../lib/guardianRules";
 import {
@@ -206,6 +206,14 @@ export function AppStateProvider({ children }) {
   // stays on screen instead (see refreshVaultBalance's catch block).
   const [vaultBalanceError, setVaultBalanceError] = useState(false);
 
+  // The funding wallet's own on-chain balance (the plain tb1q... address,
+  // BEFORE a Deposit moves it into the vault) — real, but genuinely unused
+  // anywhere in the app until now: getFundingWalletBalance already existed
+  // in taurusSdk.js but nothing ever called it, so a user who sent BTC to
+  // the funding address had no way to see it was there short of trying
+  // Deposit and having it either succeed or fail. null = not checked yet.
+  const [fundingWalletBalanceSats, setFundingWalletBalanceSats] = useState(null);
+
   // Real activity feed — merges real deposit and send history (no more mock
   // data, see PROGRESS.md). Derived on every render rather than kept as its
   // own state: it's a cheap map+sort over two arrays that are already state,
@@ -219,7 +227,7 @@ export function AppStateProvider({ children }) {
         ? {
             id: `deposit-${e.timestamp}`,
             type: "deposit",
-            label: "Deposit",
+            label: "Vault funded",
             detail: formatRelativeTime(e.timestamp),
             amountBtc: formatBtcFromSats(e.amountSats),
             timestamp: e.timestamp,
@@ -227,7 +235,7 @@ export function AppStateProvider({ children }) {
         : {
             id: `send-${e.timestamp}`,
             type: "sent",
-            label: "Sent",
+            label: "Payment sent",
             detail: formatRelativeTime(e.timestamp),
             amountBtc: formatBtcFromSats(e.amountSats),
             timestamp: e.timestamp,
@@ -500,16 +508,34 @@ export function AppStateProvider({ children }) {
     }
   }
 
-  // Refreshes everything real that can change: balance, exit readiness, and
-  // Vault Watch's backend check. Deliberately sequenced, not
-  // Promise.all'd — refreshExitStatus and registerVaultWatch both end up
-  // calling Bitcoin Core's scantxoutset against the SAME shared hosted
-  // signet daemon, and scantxoutset only allows one scan at a time
-  // node-wide (confirmed live: running them concurrently produced a real
-  // "bitcoin rpc error -8: Scan already in progress" from our own two calls
-  // racing each other, not from any other user of the shared daemon).
-  // refreshVaultBalance uses a different, non-scanning endpoint
-  // (tachi_vtxoLocked) so it's safe to run alongside the others.
+  // Mirrors refreshVaultBalance's failure handling: a transient fetch error
+  // leaves the last known value in place (not reset to null/0), except on a
+  // session's very first attempt, where there's no last-known value to
+  // preserve — see vaultBalanceError's doc comment for why that distinction
+  // matters. This number isn't safety-critical the way the vault balance is
+  // (it's just "is there BTC waiting to be deposited"), so a plain silent
+  // no-op on failure is enough; no dedicated error state for it.
+  async function refreshFundingWalletBalance() {
+    if (!walletMnemonic) return;
+    try {
+      const { balanceSats } = await getFundingWalletBalance(walletMnemonic);
+      setFundingWalletBalanceSats(balanceSats);
+    } catch {
+      // leave the last known value in place
+    }
+  }
+
+  // Refreshes everything real that can change: balance, exit readiness,
+  // Vault Watch's backend check, and the funding wallet's own balance.
+  // Deliberately sequenced, not Promise.all'd — refreshExitStatus,
+  // registerVaultWatch, and refreshFundingWalletBalance all end up calling
+  // Bitcoin Core's scantxoutset against the SAME shared hosted signet
+  // daemon, and scantxoutset only allows one scan at a time node-wide
+  // (confirmed live: running them concurrently produced a real "bitcoin rpc
+  // error -8: Scan already in progress" from our own two calls racing each
+  // other, not from any other user of the shared daemon). refreshVaultBalance
+  // uses a different, non-scanning endpoint (tachi_vtxoLocked) so it's safe
+  // to run alongside the others.
   async function refreshAllVaultState(vault) {
     if (vaultStateRefreshInFlight.current) return;
     vaultStateRefreshInFlight.current = true;
@@ -517,6 +543,7 @@ export function AppStateProvider({ children }) {
       refreshVaultBalance();
       await refreshExitStatus();
       await registerVaultWatch(vault);
+      await refreshFundingWalletBalance();
     } finally {
       vaultStateRefreshInFlight.current = false;
     }
@@ -663,6 +690,8 @@ export function AppStateProvider({ children }) {
     vaultLoading,
     vaultBalanceError,
     refreshVaultBalance,
+    fundingWalletBalanceSats,
+    refreshFundingWalletBalance,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
