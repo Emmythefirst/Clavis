@@ -20,8 +20,19 @@ import {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { activity, guardianAllClear, guardianLog, guardianRules, vaultWatchStatus, exitStatus, vaultBalanceSats, vaultLoading, openTooltip } =
-    useAppState();
+  const {
+    activity,
+    guardianAllClear,
+    guardianLog,
+    guardianRules,
+    vaultWatchStatus,
+    exitStatus,
+    vaultBalanceSats,
+    vaultLoading,
+    vaultBalanceError,
+    refreshVaultBalance,
+    openTooltip,
+  } = useAppState();
 
   const breachDetected = vaultWatchStatus?.lastCheck?.breachDetected ?? false;
   const status = getStatusMeta(getVaultStatusBucket(exitStatus, breachDetected));
@@ -60,7 +71,25 @@ export default function Home() {
         </div>
       </div>
 
-      {!hasBalance && (
+      {!hasBalance && vaultBalanceError && (
+        <div style={{ background: "#FBF1E1", borderRadius: 20, padding: "22px 18px", marginBottom: 20, textAlign: "center" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2430", marginBottom: 6 }}>
+            Couldn't check your vault's balance
+          </div>
+          <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "#8A8478", margin: "0 0 16px" }}>
+            This is a connection problem, not a confirmed empty vault — your real balance hasn't loaded yet. Try again.
+          </p>
+          <button
+            onClick={() => refreshVaultBalance()}
+            disabled={vaultLoading}
+            style={{ background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 12, padding: "11px 20px", fontSize: 13, fontWeight: 700 }}
+          >
+            {vaultLoading ? "Checking..." : "Try again"}
+          </button>
+        </div>
+      )}
+
+      {!hasBalance && !vaultBalanceError && (
         <div style={{ background: "#F1EEE6", borderRadius: 20, padding: "22px 18px", marginBottom: 20, textAlign: "center" }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2430", marginBottom: 6 }}>
             Nothing in your vault yet

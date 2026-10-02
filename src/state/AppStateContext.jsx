@@ -196,6 +196,15 @@ export function AppStateProvider({ children }) {
   // taurusSdk.js for why locked/spendable share this one number.
   const [vaultBalanceSats, setVaultBalanceSats] = useState(null);
   const [vaultLoading, setVaultLoading] = useState(true);
+  // True only when the balance has NEVER been successfully read yet and the
+  // most recent attempt failed — distinct from a genuinely empty vault.
+  // Without this, a cold-start network failure leaves vaultBalanceSats at
+  // its initial `null` forever, which Home's hasBalance check can't tell
+  // apart from a real zero balance, so it silently shows "nothing in your
+  // vault yet" for what's actually a failed fetch. A failure AFTER a real
+  // balance was already read doesn't set this — the last known real balance
+  // stays on screen instead (see refreshVaultBalance's catch block).
+  const [vaultBalanceError, setVaultBalanceError] = useState(false);
 
   // Real activity feed — merges real deposit and send history (no more mock
   // data, see PROGRESS.md). Derived on every render rather than kept as its
@@ -417,10 +426,14 @@ export function AppStateProvider({ children }) {
     try {
       const { totalSats } = await getVaultBalance(realVault);
       setVaultBalanceSats(totalSats);
+      setVaultBalanceError(false);
     } catch {
       // Transient network hiccup — leave the last known balance in place
       // rather than clearing it to null/0, which would misreport a real
-      // balance as empty.
+      // balance as empty. But if there's no last known balance yet (a fresh
+      // session's very first attempt), there's nothing to preserve — flag it
+      // explicitly instead of letting the null stand in for "confirmed empty".
+      if (vaultBalanceSats == null) setVaultBalanceError(true);
     } finally {
       setVaultLoading(false);
     }
@@ -636,6 +649,7 @@ export function AppStateProvider({ children }) {
     ensureRealVault,
     vaultBalanceSats,
     vaultLoading,
+    vaultBalanceError,
     refreshVaultBalance,
   };
 
