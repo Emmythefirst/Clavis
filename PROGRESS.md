@@ -53,6 +53,14 @@ makes a decision worth remembering. Newest entries at the top of the Session Log
 
 ## Session Log
 
+### 2026-10-02 (continued) — Third real bug from the same live session: Home's empty state didn't know about diverged vaults
+
+Found while explaining the previous entry's "Exit isn't available right now" screen to the user on their own real diverged vault (a real Send had moved its ledger balance to 0, on-chain still held the full deposit). Home's top-right status pill correctly said "Action recommended" — it's driven by the real `exitStatus`. But directly below it, the balance card said "Nothing in your vault yet, deposit BTC to get started" — as if the vault had never been touched. Two parts of the same screen reading two different real signals and disagreeing with each other.
+
+Root cause: `hasBalance` (gating which card shows) only ever looked at `vaultBalanceSats` — the ledger/spendable balance, which is legitimately `0` for a diverged vault. It never checked whether real on-chain funding exists at all. Added `hasOnChainFunding` (`exitStatus.funding.length > 0`) and a third, distinct card for "has on-chain funding, but spendable balance is 0" — explains the real situation and links to Exit, rather than inviting a fresh deposit as if starting over. The genuinely-never-funded empty state is unchanged.
+
+Related, not yet done: `vaultBalanceSats` currently drives both the "Locked in vault" and "Spendable" balance cards with the *same* number (see the 2026-09-26 entry's note on why — written before Send could actually cause real divergence). Now that it can, those two cards could show genuinely different real numbers (on-chain total vs. ledger balance) instead of being forced identical. Not done here — a more visible dashboard-semantics change worth confirming before touching, not a silent bug fix like the one above.
+
 ### 2026-10-02 — Two real bugs from live usage: deep-link 404s, and a silently-mislabeled empty vault
 
 User-reported, from real usage after the push notification work: a deposit succeeded, then ~3-5 seconds later the app showed a dark "This page doesn't exist" / `404 NOT_FOUND` screen while sitting on `/app/deposit`, and refreshing kept landing back on it. Separately, re-importing the same wallet from a fresh browser session (skip-PIN path) showed a fully empty vault — no balance, no activity — as if it were a brand-new wallet.

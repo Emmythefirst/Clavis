@@ -43,6 +43,13 @@ export default function Home() {
   const enabledRuleCount = guardianRules.filter((r) => r.enabled).length;
 
   const hasBalance = vaultBalanceSats != null && vaultBalanceSats > 0n;
+  // A vault can hold real on-chain BTC while its spendable (ledger) balance
+  // is 0 — exactly the diverged state Exit's own safety check explains (a
+  // real Send moved the ledger balance away without touching the on-chain
+  // UTXO). hasBalance alone can't tell that apart from a vault that was
+  // simply never funded, so the empty-state card below would otherwise
+  // invite a fresh deposit as if nothing had ever happened here.
+  const hasOnChainFunding = (exitStatus?.funding?.length ?? 0) > 0;
   const balanceBtc = formatBtcFromSats(vaultBalanceSats);
   const balanceSatsLabel = (vaultBalanceSats ?? 0n).toLocaleString();
 
@@ -89,7 +96,25 @@ export default function Home() {
         </div>
       )}
 
-      {!hasBalance && !vaultBalanceError && (
+      {!hasBalance && !vaultBalanceError && hasOnChainFunding && (
+        <div style={{ background: "#FBE9E4", borderRadius: 20, padding: "22px 18px", marginBottom: 20, textAlign: "center" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2430", marginBottom: 6 }}>
+            Your vault isn't empty — it's just not spendable right now
+          </div>
+          <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "#8A8478", margin: "0 0 16px" }}>
+            Your vault still holds real BTC on-chain, but a Send moved your spendable balance to 0. See Exit for why a
+            withdrawal isn't safe to build right now.
+          </p>
+          <button
+            onClick={() => navigate("/app/exit")}
+            style={{ background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 12, padding: "11px 20px", fontSize: 13, fontWeight: 700 }}
+          >
+            View Exit details
+          </button>
+        </div>
+      )}
+
+      {!hasBalance && !vaultBalanceError && !hasOnChainFunding && (
         <div style={{ background: "#F1EEE6", borderRadius: 20, padding: "22px 18px", marginBottom: 20, textAlign: "center" }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2430", marginBottom: 6 }}>
             Nothing in your vault yet
