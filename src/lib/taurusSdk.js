@@ -30,7 +30,7 @@ import {
   signUnilateralExitPsbtAsUser,
   finalizeUnilateralExitPsbt,
 } from "@tachibtc/taurus-vault-core";
-import { btcToSats, scanForUtxos, broadcastRawTransaction } from "@tachibtc/taurus-wallet-aggregator";
+import { btcToSats, scanForUtxos, broadcastRawTransaction, Keystore } from "@tachibtc/taurus-wallet-aggregator";
 import { TachiClient } from "@tachibtc/tachi-sdk-ts";
 import { getFundingWallet, getUserSigner, getRpcProxyUrl, getWalletNetworkConfig, WALLET_CHAIN } from "./wallet";
 import { Buffer } from "buffer";
@@ -397,6 +397,52 @@ export function watchVaultAddress(vault, { onCommittedTx, onError, signal }) {
   (async () => {
     try {
       for await (const event of client.watch({ address: vault.p2tr.address }, { signal })) {
+        if (event.event === "tx" && event.tx?.state === "committed") {
+          onCommittedTx(event.tx);
+        }
+      }
+    } catch (err) {
+      if (!signal.aborted) onError?.(err);
+    }
+  })();
+}
+
+// Live detection for the funding wallet's own balance — the plain tb1q...
+// address, before anything's been deposited into the vault. Same mechanism
+// as watchVaultAddress, but with a real wrinkle: `/tachi_ws`'s `address`
+// filter rejects a P2WPKH address outright (confirmed live: the daemon's
+// own error is "... is not a taproot (P2TR) address — use a raw pubkey hex
+// or a bc1p/tb1p/bcrt1p address"). Its suggested alternative, a raw pubkey
+// hex, DOES work — but the funding wallet's SDK wrapper (WalletAggregator)
+// never exposes that pubkey directly, so it's re-derived here via
+// Keystore.fromMnemonic(...).deriveAddress(false, 0), the same lower-level,
+// officially-exported API the aggregator itself is almost certainly built
+// on. Verified this produces the IDENTICAL address as the aggregator's own
+// wallet.receiveAddress for a freshly generated mnemonic before trusting its
+// .publicKey for anything — not just assumed from matching parameters.
+//
+// Honest limit on verification: confirmed live that the daemon's WebSocket
+// handshake accepts this pubkey as a filter value (same raw-`ws`-client
+// method used elsewhere in this project to verify `/tachi_ws` behavior).
+// Did NOT confirm a real payment to the resulting address actually produces
+// a committed `tx` event — that needs either a funded signet wallet or
+// regtest RPC write/API-key access to mine a block to it, neither available
+// in this environment. If it turns out the daemon's event stream only ever
+// fires for Tachi-protocol transactions (vault opens/transfers/deposits) and
+// not plain incoming Bitcoin L1 payments, this watch will simply sit
+// connected and silent — which is exactly the pre-existing behavior (no
+// live update, reload picks it up via refreshFundingWalletBalance), not a
+// regression. Worth a real end-to-end check once there's a live funded
+// wallet to test against.
+export function watchFundingWalletAddress(mnemonicWords, { onCommittedTx, onError, signal }) {
+  const network = getWalletNetworkConfig();
+  const client = new TachiClient({ baseUrl: network.rpc.jsonRpc });
+  const keystore = Keystore.fromMnemonic(mnemonicWords.join(" "), "", network, "p2wpkh", 0);
+  const { publicKey } = keystore.deriveAddress(false, 0);
+
+  (async () => {
+    try {
+      for await (const event of client.watch({ address: publicKey }, { signal })) {
         if (event.event === "tx" && event.tx?.state === "committed") {
           onCommittedTx(event.tx);
         }

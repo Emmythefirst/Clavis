@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- context Provider + its hook are intentionally colocated */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { createRealVault, getVaultBalance, getFundingWalletBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress } from "../lib/taurusSdk";
+import { createRealVault, getVaultBalance, getFundingWalletBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress, watchFundingWalletAddress } from "../lib/taurusSdk";
 import { isPushSupported, getExistingPushSubscription, enablePushNotifications, disablePushNotifications } from "../lib/pushNotifications";
 import { DEFAULT_GUARDIAN_RULES, evaluateGuardianRules } from "../lib/guardianRules";
 import {
@@ -295,6 +295,32 @@ export function AppStateProvider({ children }) {
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshVaultBalance/refreshExitStatus are stable enough for this vault-ready subscription
   }, [realVault]);
+
+  // Same idea as the vault watch above, but for the funding wallet's own
+  // balance (see watchFundingWalletAddress's doc comment in taurusSdk.js for
+  // the real wrinkle this needed — the WS address filter rejects a plain
+  // P2WPKH address, so this watches the wallet's pubkey instead). Gated on
+  // walletMnemonic rather than realVault — the funding wallet exists
+  // independent of whether a vault has ever been created. Whether the
+  // daemon's event stream actually fires for a plain incoming L1 payment
+  // (as opposed to a Tachi-protocol transaction) wasn't confirmed live, so
+  // onError degrading to "no live update, reload picks it up" is the
+  // expected/acceptable outcome here, not just a fallback for failures.
+  useEffect(() => {
+    if (!walletMnemonic) return;
+    const controller = new AbortController();
+    watchFundingWalletAddress(walletMnemonic, {
+      signal: controller.signal,
+      onCommittedTx: () => {
+        refreshFundingWalletBalance();
+      },
+      onError: (err) => {
+        console.info("Live funding-wallet detection unavailable:", err.message);
+      },
+    });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshFundingWalletBalance is stable enough for this mnemonic-ready subscription
+  }, [walletMnemonic]);
 
   // Whether the most recent real Guardian review found anything — the honest
   // replacement for the old guardianResolved boolean. No entries yet, or the
