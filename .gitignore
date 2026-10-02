@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+
+# Kept local only, never committed — see user instruction 2026-10-02
+PROGRESS.md
