@@ -4,7 +4,7 @@ import BottomNav from "./BottomNav";
 import TooltipSheet from "./TooltipSheet";
 import UnlockScreen from "../Onboarding/UnlockScreen";
 
-const NAV_ROUTES = new Set(["/app", "/app/transfer", "/app/exit"]);
+const NAV_ROUTES = new Set(["/app", "/app/activity", "/app/guardian"]);
 
 export default function AppShell() {
   const { pathname } = useLocation();

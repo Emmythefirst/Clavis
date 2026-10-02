@@ -72,8 +72,13 @@ export function getVaultWatchAlert(vaultWatchStatus) {
 
 // guardianAllClear reflects the MOST RECENT real Send Guardian reviewed (or
 // "no sends yet" if there haven't been any) — see AppStateContext.
+// lastLogEntry is guardianLog[0] (or null) — passed through rather than just
+// a hasHistory boolean so the "action recommended" case can say what the
+// actual recommendation is, instead of deflecting to "see activity for what
+// triggered it".
 // vaultWatchAlert is getVaultWatchAlert's result, or null.
-export function getGuardianMeta(guardianAllClear, hasHistory, vaultWatchAlert) {
+export function getGuardianMeta(guardianAllClear, lastLogEntry, vaultWatchAlert) {
+  const hasHistory = !!lastLogEntry;
   if (vaultWatchAlert?.level === "danger") {
     return {
       bg: "#FBE9E4",
@@ -89,7 +94,7 @@ export function getGuardianMeta(guardianAllClear, hasHistory, vaultWatchAlert) {
       iconBg: "#F3E2C0",
       iconColor: "#B8842E",
       title: "Guardian: action recommended",
-      subtitle: vaultWatchAlert?.level === "warning" ? vaultWatchAlert.message : "See activity for what triggered it",
+      subtitle: vaultWatchAlert?.level === "warning" ? vaultWatchAlert.message : lastLogEntry?.reason || "A recent payment triggered a rule",
     };
   }
   if (vaultWatchAlert?.level === "info") {

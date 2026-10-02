@@ -1,5 +1,16 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { HomeNavIcon, ArrowUpRightIcon, ExitNavIcon } from "../icons";
+import { HomeNavIcon, HistoryIcon, ShieldIcon } from "../icons";
+
+// Home / Activity / Guardian — the app's three real destinations. Send,
+// Receive, Deposit, and Exit are actions reached FROM Home, not places you
+// return to, so they don't belong in persistent navigation (they used to be
+// here as Send/Exit; this correctly matches what a judge/user actually
+// comes back to repeatedly vs. a one-off flow they start and finish).
+const TABS = [
+  { path: "/app", label: "Home", Icon: HomeNavIcon },
+  { path: "/app/activity", label: "Activity", Icon: HistoryIcon },
+  { path: "/app/guardian", label: "Guardian", Icon: ShieldIcon },
+];
 
 export default function BottomNav() {
   const { pathname } = useLocation();
@@ -18,56 +29,25 @@ export default function BottomNav() {
         padding: "10px 20px calc(10px + env(safe-area-inset-bottom))",
       }}
     >
-      <button
-        onClick={() => navigate("/app")}
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 4,
-          background: "none",
-          border: "none",
-          padding: 6,
-        }}
-      >
-        <HomeNavIcon color={colorFor("/app")} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/app") }}>Home</span>
-      </button>
-      <button
-        onClick={() => navigate("/app/transfer")}
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 4,
-          background: "none",
-          border: "none",
-          padding: 6,
-        }}
-      >
-        <ArrowUpRightIcon size={19} color={colorFor("/app/transfer")} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/app/transfer") }}>
-          Send
-        </span>
-      </button>
-      <button
-        onClick={() => navigate("/app/exit")}
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 4,
-          background: "none",
-          border: "none",
-          padding: 6,
-        }}
-      >
-        <ExitNavIcon color={colorFor("/app/exit")} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor("/app/exit") }}>Exit</span>
-      </button>
+      {TABS.map(({ path, label, Icon }) => (
+        <button
+          key={path}
+          onClick={() => navigate(path)}
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 4,
+            background: "none",
+            border: "none",
+            padding: 6,
+          }}
+        >
+          <Icon size={19} color={colorFor(path)} />
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: colorFor(path) }}>{label}</span>
+        </button>
+      ))}
     </div>
   );
 }

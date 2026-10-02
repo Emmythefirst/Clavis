@@ -9,6 +9,7 @@ import SuccessScreen from "./components/Onboarding/Create/SuccessScreen";
 import ImportEnterScreen from "./components/Onboarding/Import/ImportEnterScreen";
 import AppLockScreen from "./components/Onboarding/AppLockScreen";
 import Home from "./components/Home/Home";
+import ActivityScreen from "./components/Activity/ActivityScreen";
 import ReceiveBTC from "./components/Receive/ReceiveBTC";
 import Deposit from "./components/Deposit/Deposit";
 import Transfer from "./components/Transfer/Transfer";
@@ -33,6 +34,7 @@ function App() {
         <Route path="/onboarding/import/lock" element={<AppLockScreen next="/app" />} />
 
         <Route path="/app" element={<Home />} />
+        <Route path="/app/activity" element={<ActivityScreen />} />
         <Route path="/app/receive" element={<ReceiveBTC />} />
         <Route path="/app/deposit" element={<Deposit />} />
         <Route path="/app/transfer" element={<Transfer />} />

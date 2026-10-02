@@ -38,7 +38,7 @@ export default function Home() {
   const status = getStatusMeta(getVaultStatusBucket(exitStatus, breachDetected));
   const timelockHeadline = getTimelockHeadline(exitStatus, breachDetected);
   const vaultWatchAlert = getVaultWatchAlert(vaultWatchStatus);
-  const guardian = getGuardianMeta(guardianAllClear, guardianLog.length > 0, vaultWatchAlert);
+  const guardian = getGuardianMeta(guardianAllClear, guardianLog[0] ?? null, vaultWatchAlert);
   const guardianOk = !vaultWatchAlert || vaultWatchAlert.level === "info";
   const enabledRuleCount = guardianRules.filter((r) => r.enabled).length;
 
@@ -284,8 +284,19 @@ export default function Home() {
 
       {hasBalance && (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#9C958A", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
-            Recent activity
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#9C958A", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              Recent activity
+            </span>
+            {activity.length > 0 && (
+              <button
+                onClick={() => navigate("/app/activity")}
+                style={{ display: "flex", alignItems: "center", gap: 2, background: "none", border: "none", padding: 0, fontSize: 11.5, fontWeight: 600, color: "#8A8478" }}
+              >
+                View all
+                <ChevronRightIcon size={12} color="#8A8478" />
+              </button>
+            )}
           </div>
           {activity.length === 0 ? (
             <p style={{ fontSize: 12.5, color: "#9C958A", lineHeight: 1.55, margin: 0 }}>
@@ -293,7 +304,7 @@ export default function Home() {
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {activity.map((item, i) => (
+              {activity.slice(0, 3).map((item, i, shown) => (
                 <div
                   key={item.id}
                   style={{
@@ -301,7 +312,7 @@ export default function Home() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     padding: "11px 0",
-                    borderBottom: i < activity.length - 1 ? "1px solid #EFEADD" : "none",
+                    borderBottom: i < shown.length - 1 ? "1px solid #EFEADD" : "none",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

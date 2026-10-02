@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../state/AppStateContext";
-import { CheckIcon, CopyIcon, AlertTriangleIcon, ShieldIcon } from "../icons";
+import { ChevronLeftIcon, CheckIcon, CopyIcon, AlertTriangleIcon, ShieldIcon } from "../icons";
 
 function truncate(address) {
   if (!address || address.length <= 24) return address;
@@ -8,6 +9,7 @@ function truncate(address) {
 }
 
 export default function Transfer() {
+  const navigate = useNavigate();
   const {
     sendMode,
     setSendMode,
@@ -47,6 +49,9 @@ export default function Transfer() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px 20px 100px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
+        <button onClick={() => navigate("/app")} style={{ background: "none", border: "none", padding: 4 }}>
+          <ChevronLeftIcon />
+        </button>
         <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2430" }}>Transfer</span>
       </div>
 

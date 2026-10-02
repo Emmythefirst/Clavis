@@ -222,6 +222,7 @@ export function AppStateProvider({ children }) {
             label: "Deposit",
             detail: formatRelativeTime(e.timestamp),
             amountBtc: formatBtcFromSats(e.amountSats),
+            timestamp: e.timestamp,
           }
         : {
             id: `send-${e.timestamp}`,
@@ -229,6 +230,8 @@ export function AppStateProvider({ children }) {
             label: "Sent",
             detail: formatRelativeTime(e.timestamp),
             amountBtc: formatBtcFromSats(e.amountSats),
+            timestamp: e.timestamp,
+            recipient: e.recipient,
           }
     );
 
@@ -304,9 +307,9 @@ export function AppStateProvider({ children }) {
   // Records a completed Guardian review (whatever its outcome) to the
   // persisted log and local state together, so ActivityLog and the Home
   // banner never disagree about what's already happened.
-  function logGuardianReview({ checks, triggered, amountSats, recipient, status }) {
+  function logGuardianReview({ checks, triggered, amountSats, recipient, status, timestamp = Date.now() }) {
     const entry = {
-      id: `log-${Date.now()}`,
+      id: `log-${timestamp}`,
       title:
         status === "clean"
           ? "Payment sent"
@@ -317,7 +320,12 @@ export function AppStateProvider({ children }) {
         triggered.length > 0
           ? triggered.map((c) => c.reason).join("; ")
           : `All ${checks.length} enabled check${checks.length === 1 ? "" : "s"} passed.`,
-      date: new Date().toLocaleString(),
+      date: new Date(timestamp).toLocaleString(),
+      // Raw timestamp, same one appendSendHistory writes for the matching
+      // send — lets the Activity screen correlate the two exactly rather
+      // than fuzzy-matching by display date. A 'cancelled' entry has no
+      // timestamp-matching send at all, since the payment never went out.
+      timestamp,
       status, // 'clean' | 'confirmed' | 'cancelled'
       amountSats: amountSats.toString(),
       recipient,
@@ -348,8 +356,12 @@ export function AppStateProvider({ children }) {
         setSendError(describeSendError(result));
         return;
       }
-      setSendHistory(appendSendHistory({ recipient, amountSats, timestamp: Date.now() }));
-      logGuardianReview({ checks, triggered, amountSats, recipient, status: triggered.length > 0 ? "confirmed" : "clean" });
+      // One shared timestamp for both writes — lets the Activity screen match
+      // a send to its Guardian outcome exactly, instead of guessing from two
+      // independently-timed Date.now() calls a line apart.
+      const timestamp = Date.now();
+      setSendHistory(appendSendHistory({ recipient, amountSats, timestamp }));
+      logGuardianReview({ checks, triggered, amountSats, recipient, status: triggered.length > 0 ? "confirmed" : "clean", timestamp });
       setSendTxHash(result.txHash);
       setSendSuccess(true);
       await refreshAllVaultState(vault);
