@@ -538,8 +538,22 @@ export function AppStateProvider({ children }) {
     setRegistrationRetryBusy(true);
     setRegistrationRetryError(null);
     try {
-      const result = await registerDepositOnLedger(walletMnemonic, exitStatus.onChainTotalSats);
+      const amountSats = exitStatus.onChainTotalSats;
+      const result = await registerDepositOnLedger(walletMnemonic, amountSats);
       if (!result.ok) throw new Error(result.message);
+      // A successful registration means the ledger now holds the vault's
+      // full on-chain amount — known for certain from this result, not
+      // something that needs a second, separately-flaky round trip to
+      // confirm. Set it directly first: refreshVaultBalance/refreshExitStatus
+      // both silently KEEP their stale value on a transient failure (by
+      // design, so a flaky moment never falsely shows an empty vault) — which
+      // means a hiccup in the very next check right after a real fix would
+      // otherwise make it look like the retry did nothing at all. Exit's own
+      // block is gated on exitStatus.settled specifically, not vaultBalanceSats,
+      // so both need the same optimistic update or Exit alone would still
+      // show blocked even once Home looks fixed.
+      setVaultBalanceSats(amountSats);
+      setExitStatus((prev) => (prev ? { ...prev, ledgerBalanceSats: amountSats, settled: true } : prev));
       await refreshVaultBalance();
       await refreshExitStatus();
     } catch (err) {
