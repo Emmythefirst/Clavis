@@ -147,6 +147,14 @@ export async function depositRealBtc(mnemonicWords, vault, amountBtc, { onStage 
         requiredSats: btcToSats(amountBtc),
       };
     }
+    if (err instanceof VaultDepositError && /already funded/i.test(err.message)) {
+      // Real protocol constraint, not a transient failure: TAURUS vaults are
+      // atomic — one deposit per vault address, enforced by the SDK itself
+      // (taurus-vault-core's depositToVault, allowRedeposit defaults false).
+      // Retrying this exact call will fail the same way every time; the only
+      // way to deposit more BTC is a new vault (new address).
+      return { ok: false, reason: "vault_already_funded", message: err.message };
+    }
     return { ok: false, reason: "error", message: err.message };
   }
 }

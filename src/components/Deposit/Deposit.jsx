@@ -224,7 +224,28 @@ export default function Deposit() {
         </div>
       )}
 
-      {depositStep === 1 && !busy && depositError && depositError.reason !== "insufficient_funds" && (
+      {depositStep === 1 && !busy && depositError?.reason === "vault_already_funded" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1C2430", marginBottom: 6 }}>This vault already holds a deposit</div>
+            <p style={{ fontSize: 13, lineHeight: 1.55, color: "#8A8478", margin: 0 }}>
+              TAURUS vaults accept exactly one deposit for their lifetime — yours already has funds
+              locked in it. To deposit more BTC, you'd need a separate, new vault.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setDepositStep(0);
+              navigate("/app");
+            }}
+            style={{ width: "100%", background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: "auto" }}
+          >
+            View your vault
+          </button>
+        </div>
+      )}
+
+      {depositStep === 1 && !busy && depositError && !["insufficient_funds", "vault_already_funded"].includes(depositError.reason) && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#95392A", marginBottom: 6 }}>Something went wrong</div>
