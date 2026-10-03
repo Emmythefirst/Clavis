@@ -76,7 +76,13 @@ export async function registerDepositOnLedger(mnemonicWords, amountSats) {
   const baseUrl = network.rpc.jsonRpc;
 
   try {
-    const nonce = await getAccountNonce(userXOnly, { baseUrl });
+    // Tachi's shared signet daemon is used by every hackathon participant, so
+    // its latency under load is real and variable — the SDK's own default
+    // (5s for a nonce fetch) is tight enough that a user hit a genuine
+    // timeout against a daemon that was simply slow, not down (confirmed
+    // live: the same endpoint responded in under a second moments later).
+    // Widened here, not changed upstream in the SDK.
+    const nonce = await getAccountNonce(userXOnly, { baseUrl, requestTimeoutMs: 15000 });
     // The SDK's own type doc says feeSats defaults to 0n, but the live
     // daemon rejects that with "fee below minimum" (code=8) — confirmed by
     // testing directly against rpc-signet.tachibtc.com. 2n matches Tachi's
@@ -87,7 +93,7 @@ export async function registerDepositOnLedger(mnemonicWords, amountSats) {
     // /tachi_txBroadcastSync is a POST route with the same CORS gap as the
     // raw Bitcoin RPC proxy (PROGRESS.md 2026-08-15). GET routes below
     // (waitForVtxoCommit, and getAccountNonce above) don't have this problem.
-    await broadcastTachiTx(signed, getRpcProxyUrl("/tachi_txBroadcastSync"));
+    await broadcastTachiTx(signed, { ...getRpcProxyUrl("/tachi_txBroadcastSync"), timeoutMs: 20000 });
     const vtxoId = vtxoIdFromDeposit(signed, 0);
     await waitForVtxoCommit(vtxoId, { baseUrl, overallTimeoutMs: 60000, pollIntervalMs: 1500 });
     return { ok: true, vtxoId: vtxoId.toString("hex") };
@@ -262,10 +268,10 @@ export async function sendVtxoTransfer(mnemonicWords, vault, recipientAddress, a
     verifyVtxoPsbt(built.psbt, vault, feeOpts);
     await signVtxoPsbtAsUser(built.psbt, userSigner, vault, feeOpts);
 
-    const nonce = await getAccountNonce(userXOnly, { baseUrl });
+    const nonce = await getAccountNonce(userXOnly, { baseUrl, requestTimeoutMs: 15000 });
     const draft = buildTachiTxTransfer({ vault, inputs, outputs, feeSats, nonce, psbt: built.psbt });
     const signed = await signTachiTx(draft, userSigner);
-    const broadcast = await broadcastTachiTx(signed, getRpcProxyUrl("/tachi_txBroadcastSync"));
+    const broadcast = await broadcastTachiTx(signed, { ...getRpcProxyUrl("/tachi_txBroadcastSync"), timeoutMs: 20000 });
     const status = await waitForTachiTxCommit(broadcast.tendermintTxHash, {
       baseUrl,
       overallTimeoutMs: 60000,
