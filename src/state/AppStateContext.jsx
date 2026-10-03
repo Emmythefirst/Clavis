@@ -552,10 +552,23 @@ export function AppStateProvider({ children }) {
       // block is gated on exitStatus.settled specifically, not vaultBalanceSats,
       // so both need the same optimistic update or Exit alone would still
       // show blocked even once Home looks fixed.
-      setVaultBalanceSats(amountSats);
       setExitStatus((prev) => (prev ? { ...prev, ledgerBalanceSats: amountSats, settled: true } : prev));
+      setVaultBalanceSats(amountSats);
+      // getVaultBalance (what both calls below hit internally) reads Tachi's
+      // ledger directly — right after broadcasting a registration, that read
+      // can still legitimately return the pre-registration value for a
+      // moment (propagation lag, not a failure), and refreshVaultBalance's
+      // success path would overwrite the known-correct amount above with
+      // that stale read. Reasserting it last guarantees nothing in between
+      // can clobber a value we already know is correct.
       await refreshVaultBalance();
       await refreshExitStatus();
+      // refreshExitStatus hits the exact same ledger-propagation-lag risk
+      // internally — reassert both known-correct values last so neither
+      // refresh above can regress a confirmed fix back to a stale pre-
+      // registration read.
+      setVaultBalanceSats(amountSats);
+      setExitStatus((prev) => (prev ? { ...prev, ledgerBalanceSats: amountSats, settled: true } : prev));
     } catch (err) {
       setRegistrationRetryError(err.message);
     } finally {
