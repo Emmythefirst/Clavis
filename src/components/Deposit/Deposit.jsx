@@ -2,13 +2,51 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../state/AppStateContext";
 import { depositRealBtc, registerDepositOnLedger } from "../../lib/taurusSdk";
-import { ChevronLeftIcon, CheckIcon, CopyIcon } from "../icons";
+import { ChevronLeftIcon, CheckIcon, CopyIcon, ShieldIcon } from "../icons";
 
 const DOT_COLOR = (active) => (active ? "#1C2430" : "#EFEADD");
+
+// Maps depositRealBtc's real onStage callbacks to user-facing copy — each
+// one fires at a genuine before/after point in the deposit (see taurusSdk.js),
+// not on a timer, so this never shows a stage the app isn't actually in.
+const DEPOSIT_STAGE_LABEL = {
+  syncing: "Checking your wallet's balance...",
+  depositing: "Sending your deposit to the vault...",
+  registering: "Registering it on Tachi's ledger...",
+};
 
 function truncate(address) {
   if (!address || address.length <= 24) return address;
   return `${address.slice(0, 14)}...${address.slice(-8)}`;
+}
+
+function BusyState({ label }) {
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: "#1C2430",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 20,
+          animation: "clavis-pulse 1.4s ease-in-out infinite",
+        }}
+      >
+        <ShieldIcon color="#FBF9F4" />
+      </div>
+      <style>{`
+        @keyframes clavis-pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.08); opacity: 0.85; }
+        }
+      `}</style>
+      <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "#8A8478", maxWidth: 260, margin: 0 }}>{label}</p>
+    </div>
+  );
 }
 
 export default function Deposit() {
@@ -48,31 +86,46 @@ export default function Deposit() {
 
   async function confirmDeposit() {
     setBusy(true);
-    setBusyLabel("Sending your deposit to the vault, then registering it on Tachi's ledger...");
+    setBusyLabel(DEPOSIT_STAGE_LABEL.syncing);
     setDepositError(null);
-    const result = await depositRealBtc(walletMnemonic, realVault, depositAmount);
-    setBusy(false);
-    if (result.ok) {
-      setDepositResult(result);
-      setDepositStep(2);
-      recordDeposit(result.amountSats, result.txid);
-      refreshVaultBalance();
-      refreshFundingWalletBalance();
-    } else {
-      setDepositError(result);
+    try {
+      const result = await depositRealBtc(walletMnemonic, realVault, depositAmount, {
+        onStage: (stage) => setBusyLabel(DEPOSIT_STAGE_LABEL[stage]),
+      });
+      if (result.ok) {
+        setDepositResult(result);
+        setDepositStep(2);
+        recordDeposit(result.amountSats, result.txid);
+        refreshVaultBalance();
+        refreshFundingWalletBalance();
+      } else {
+        setDepositError(result);
+      }
+    } catch (err) {
+      // Backstop only — depositRealBtc is documented to always resolve, never
+      // throw. Keeping this means a regression there leaves an error on
+      // screen instead of a busy screen stuck forever.
+      setDepositError({ reason: "error", message: err.message });
+    } finally {
+      setBusy(false);
     }
   }
 
   async function retryRegistration() {
     setBusy(true);
     setBusyLabel("Registering your deposit on Tachi's ledger...");
-    const registration = await registerDepositOnLedger(walletMnemonic, depositResult.amountSats);
-    setBusy(false);
-    setDepositResult((prev) => ({
-      ...prev,
-      vtxoId: registration.ok ? registration.vtxoId : null,
-      registrationError: registration.ok ? null : registration.message,
-    }));
+    try {
+      const registration = await registerDepositOnLedger(walletMnemonic, depositResult.amountSats);
+      setDepositResult((prev) => ({
+        ...prev,
+        vtxoId: registration.ok ? registration.vtxoId : null,
+        registrationError: registration.ok ? null : registration.message,
+      }));
+    } catch (err) {
+      setDepositResult((prev) => ({ ...prev, vtxoId: null, registrationError: err.message }));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function copyFundingAddress(address) {
@@ -143,11 +196,7 @@ export default function Deposit() {
         </div>
       )}
 
-      {depositStep === 1 && busy && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-          <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "#8A8478", maxWidth: 260 }}>{busyLabel}</p>
-        </div>
-      )}
+      {depositStep === 1 && busy && <BusyState label={busyLabel} />}
 
       {depositStep === 1 && !busy && depositError?.reason === "insufficient_funds" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>

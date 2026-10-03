@@ -106,12 +106,20 @@ export async function registerDepositOnLedger(mnemonicWords, amountSats) {
 // `ok: true` means the L1 deposit genuinely landed (money moved) even if
 // `registrationError` is set, since those are two different failure domains
 // and conflating them would misreport a real deposit as failed.
-export async function depositRealBtc(mnemonicWords, vault, amountBtc) {
-  const { wallet, rpc } = getFundingWallet(mnemonicWords);
-  await wallet.sync();
-  const amountSats = btcToSats(amountBtc);
-
+//
+// onStage(stage), if given, fires at each real transition ("syncing" ->
+// "depositing" -> "registering") so the UI can show honest progress instead
+// of one static label for the whole multi-second call. These are genuine
+// before/after markers around the actual awaits below, not a timed fake.
+export async function depositRealBtc(mnemonicWords, vault, amountBtc, { onStage } = {}) {
+  let wallet, rpc;
   try {
+    ({ wallet, rpc } = getFundingWallet(mnemonicWords));
+    onStage?.("syncing");
+    await wallet.sync();
+    const amountSats = btcToSats(amountBtc);
+
+    onStage?.("depositing");
     const result = await sdkDepositToVault({
       vault,
       userWallet: wallet,
@@ -119,6 +127,7 @@ export async function depositRealBtc(mnemonicWords, vault, amountBtc) {
       amountSats,
       feeRateSatVb: SIGNET_FEE_RATE_SAT_VB,
     });
+    onStage?.("registering");
     const registration = await registerDepositOnLedger(mnemonicWords, amountSats);
     return {
       ok: true,
@@ -128,12 +137,14 @@ export async function depositRealBtc(mnemonicWords, vault, amountBtc) {
     };
   } catch (err) {
     if (err instanceof VaultDepositError && /insufficient/i.test(err.message)) {
+      // wallet is only synced (balance populated) if we got past wallet.sync()
+      // above before failing — getFundingWallet itself can't throw this error.
       return {
         ok: false,
         reason: "insufficient_funds",
         fundingAddress: wallet.receiveAddress,
         availableSats: wallet.balance.total,
-        requiredSats: amountSats,
+        requiredSats: btcToSats(amountBtc),
       };
     }
     return { ok: false, reason: "error", message: err.message };
