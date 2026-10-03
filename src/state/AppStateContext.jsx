@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- context Provider + its hook are intentionally colocated */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { createRealVault, getVaultBalance, getFundingWalletBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress, watchFundingWalletAddress } from "../lib/taurusSdk";
+import { createRealVault, getVaultBalance, getFundingWalletBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress, watchFundingWalletAddress, registerDepositOnLedger } from "../lib/taurusSdk";
 import { isPushSupported, getExistingPushSubscription, enablePushNotifications, disablePushNotifications } from "../lib/pushNotifications";
 import { DEFAULT_GUARDIAN_RULES, evaluateGuardianRules } from "../lib/guardianRules";
 import {
@@ -91,6 +91,8 @@ export function AppStateProvider({ children }) {
   // UTXO confirmations vs. the vault's real exitLeaf.csvBlocks (1008).
   const [exitStatus, setExitStatus] = useState(null);
   const [exitStatusLoading, setExitStatusLoading] = useState(true);
+  const [registrationRetryBusy, setRegistrationRetryBusy] = useState(false);
+  const [registrationRetryError, setRegistrationRetryError] = useState(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [exitDestination, setExitDestination] = useState("");
   const [exitBusy, setExitBusy] = useState(false);
@@ -522,6 +524,31 @@ export function AppStateProvider({ children }) {
     }
   }
 
+  // Recovers from a deposit whose on-chain transaction succeeded but whose
+  // ledger-registration step (see Deposit.jsx's "retry registration") never
+  // completed — the vault shows real on-chain funding with 0 spendable
+  // balance, identical in shape to a diverged post-Send vault, but with a
+  // real fix available: register it. Deposit's own retry only exists while
+  // that screen is mounted; this is the same call reachable from anywhere
+  // (Home/Exit), using the vault's one-and-only deposit amount — vaults are
+  // atomic (one deposit for their lifetime), so onChainTotalSats IS the
+  // amount that needs registering, no need to look up deposit history.
+  async function retryVaultRegistration() {
+    if (!exitStatus || exitStatus.onChainTotalSats <= 0n) return;
+    setRegistrationRetryBusy(true);
+    setRegistrationRetryError(null);
+    try {
+      const result = await registerDepositOnLedger(walletMnemonic, exitStatus.onChainTotalSats);
+      if (!result.ok) throw new Error(result.message);
+      await refreshVaultBalance();
+      await refreshExitStatus();
+    } catch (err) {
+      setRegistrationRetryError(err.message);
+    } finally {
+      setRegistrationRetryBusy(false);
+    }
+  }
+
   // Registers this vault with the real Vault Watch backend and pulls back
   // the immediate check it runs on registration — see api/guardian/register.js.
   // Idempotent (re-registering just re-checks), so this is safe to call again
@@ -697,6 +724,10 @@ export function AppStateProvider({ children }) {
     exitStatus,
     exitStatusLoading,
     refreshExitStatus,
+    retryVaultRegistration,
+    registrationRetryBusy,
+    registrationRetryError,
+    sendHistory,
     exitConfirmOpen,
     setExitConfirmOpen,
     exitDestination,

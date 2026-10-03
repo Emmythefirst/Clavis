@@ -32,6 +32,10 @@ export default function Home() {
     refreshVaultBalance,
     fundingWalletBalanceSats,
     openTooltip,
+    sendHistory,
+    retryVaultRegistration,
+    registrationRetryBusy,
+    registrationRetryError,
   } = useAppState();
 
   const breachDetected = vaultWatchStatus?.lastCheck?.breachDetected ?? false;
@@ -51,6 +55,15 @@ export default function Home() {
   // total in that case instead of silently agreeing with the ledger's 0.
   const hasOnChainFunding = (exitStatus?.funding?.length ?? 0) > 0;
   const diverged = hasOnChainFunding && !hasBalance && exitStatus?.settled === false;
+  // Two real, different causes produce the identical settled:false shape:
+  // a real Send (ledger balance spent down, on-chain UTXO untouched), or a
+  // deposit whose on-chain transaction succeeded but whose ledger
+  // registration never completed (ledger balance never credited at all —
+  // see Deposit.jsx's "retry registration" path). sendHistory is the only
+  // local signal that can tell them apart: no Send ever recorded on this
+  // device rules out the first cause, leaving the second as the real
+  // explanation (and the one with an actual fix — see retryVaultRegistration).
+  const neverRegistered = diverged && sendHistory.length === 0;
   const heroSats = diverged ? exitStatus.onChainTotalSats : vaultBalanceSats ?? 0n;
   const heroBtc = formatBtcFromSats(heroSats);
   const heroSatsLabel = heroSats.toLocaleString();
@@ -127,10 +140,40 @@ export default function Home() {
               ≈{heroBtc} BTC
             </div>
 
-            {diverged && (
+            {diverged && !neverRegistered && (
               <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "#E8B4A3", margin: "10px 0 0" }}>
                 ⚠ Spendable right now: 0 sats — a Send moved this off-chain. See Exit for why a withdrawal isn't safe to build.
               </p>
+            )}
+
+            {neverRegistered && (
+              <>
+                <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "#E8B4A3", margin: "10px 0 0" }}>
+                  ⚠ Spendable right now: 0 sats — your deposit landed on-chain, but never finished registering on
+                  Tachi's ledger, so it isn't spendable yet.
+                </p>
+                {registrationRetryError && (
+                  <p style={{ fontSize: 12, lineHeight: 1.5, color: "#E8B4A3", margin: "8px 0 0" }}>
+                    {registrationRetryError}
+                  </p>
+                )}
+                <button
+                  onClick={() => retryVaultRegistration()}
+                  disabled={registrationRetryBusy}
+                  style={{
+                    background: "#FBF9F4",
+                    color: "#1C2430",
+                    border: "none",
+                    borderRadius: 12,
+                    padding: "11px 20px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    marginTop: 12,
+                  }}
+                >
+                  {registrationRetryBusy ? "Registering..." : "Retry registration"}
+                </button>
+              </>
             )}
 
             {!hasOnChainFunding && (

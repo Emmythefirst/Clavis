@@ -18,6 +18,10 @@ export default function Exit() {
     exitError,
     exitResults,
     confirmExit,
+    sendHistory,
+    retryVaultRegistration,
+    registrationRetryBusy,
+    registrationRetryError,
   } = useAppState();
 
   if (vaultLoading && vaultBalanceSats == null) return null;
@@ -40,6 +44,12 @@ export default function Exit() {
   const leastMature = hasFunding
     ? exitStatus.funding.reduce((a, b) => (b.blocksRemaining > a.blocksRemaining ? b : a))
     : null;
+
+  // Same two-causes ambiguity Home resolves the same way (see its own
+  // comment): settled:false can mean a real Send spent the ledger balance
+  // down, or the deposit's ledger-registration step never completed. No
+  // Send recorded on this device points at the latter, which has a real fix.
+  const neverRegistered = hasFunding && !exitStatus.settled && sendHistory.length === 0;
 
   return (
     <>
@@ -97,13 +107,34 @@ export default function Exit() {
               <AlertTriangleIcon size={24} color="#95392A" />
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#1C2430", marginBottom: 8 }}>Exit isn't available right now</div>
-            <p style={{ fontSize: 13, lineHeight: 1.55, color: "#8A8478", margin: "0 0 20px", maxWidth: 290 }}>
-              Your vault's on-chain balance ({formatBtcFromSats(exitStatus.onChainTotalSats)} BTC) no longer matches
-              your current spendable balance ({formatBtcFromSats(exitStatus.ledgerBalanceSats)} BTC) — some of it has
-              been sent off-chain since it was deposited. A unilateral exit spends the full on-chain amount, which
-              would overclaim what you actually still hold and could be challenged as a breach. Reconciling this
-              needs a cooperative vault-state update, which isn't built yet.
-            </p>
+            {neverRegistered ? (
+              <>
+                <p style={{ fontSize: 13, lineHeight: 1.55, color: "#8A8478", margin: "0 0 20px", maxWidth: 290 }}>
+                  Your vault's on-chain balance ({formatBtcFromSats(exitStatus.onChainTotalSats)} BTC) no longer matches
+                  your current spendable balance ({formatBtcFromSats(exitStatus.ledgerBalanceSats)} BTC) — your deposit's
+                  on-chain transaction succeeded, but it looks like it never finished registering on Tachi's ledger.
+                  Unlike a real Send, this has a direct fix: registering it now.
+                </p>
+                {registrationRetryError && (
+                  <p style={{ fontSize: 12.5, color: "#95392A", margin: "0 0 16px", maxWidth: 290 }}>{registrationRetryError}</p>
+                )}
+                <button
+                  onClick={() => retryVaultRegistration()}
+                  disabled={registrationRetryBusy}
+                  style={{ background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: "13px 22px", fontSize: 13.5, fontWeight: 700 }}
+                >
+                  {registrationRetryBusy ? "Registering..." : "Retry registration"}
+                </button>
+              </>
+            ) : (
+              <p style={{ fontSize: 13, lineHeight: 1.55, color: "#8A8478", margin: "0 0 20px", maxWidth: 290 }}>
+                Your vault's on-chain balance ({formatBtcFromSats(exitStatus.onChainTotalSats)} BTC) no longer matches
+                your current spendable balance ({formatBtcFromSats(exitStatus.ledgerBalanceSats)} BTC) — some of it has
+                been sent off-chain since it was deposited. A unilateral exit spends the full on-chain amount, which
+                would overclaim what you actually still hold and could be challenged as a breach. Reconciling this
+                needs a cooperative vault-state update, which isn't built yet.
+              </p>
+            )}
           </div>
         )}
 
