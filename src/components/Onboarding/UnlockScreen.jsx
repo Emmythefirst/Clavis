@@ -3,7 +3,7 @@ import { useAppState } from "../../state/AppStateContext";
 import { ShieldIcon } from "../icons";
 import PinDigitInput, { usePinDigits } from "./PinDigitInput";
 
-const PIN_LENGTH = 4;
+const PIN_LENGTH = 6;
 
 // Shown by AppShell instead of any /app route whenever AppStateContext's
 // vaultLocked is true — a device that has a PIN-encrypted wallet (see
@@ -29,7 +29,7 @@ export default function UnlockScreen() {
       <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#F1EEE6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
         <ShieldIcon size={22} />
       </div>
-      <div style={{ fontSize: 17, fontWeight: 700, color: "#1C2430", marginBottom: 8 }}>Vault locked</div>
+      <div style={{ fontSize: 17, fontWeight: 700, color: "#1C2430", marginBottom: 8 }}>Wallet locked</div>
       <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "#8A8478", margin: "0 0 8px", maxWidth: 290 }}>
         Your wallet keys are encrypted on this device.
       </p>

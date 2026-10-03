@@ -6,7 +6,7 @@ import { ShieldIcon } from "../icons";
 import PinDigitInput, { usePinDigits } from "./PinDigitInput";
 import { clearEncryptedVault } from "../../lib/wallet";
 
-const PIN_LENGTH = 4;
+const PIN_LENGTH = 6;
 
 export default function AppLockScreen({ next }) {
   const navigate = useNavigate();
@@ -90,10 +90,13 @@ export default function AppLockScreen({ next }) {
       <button
         onClick={handleSkip}
         disabled={busy}
-        style={{ width: "100%", background: "none", border: "none", color: "#9C958A", padding: 14, fontSize: 13.5, fontWeight: 600 }}
+        style={{ width: "100%", background: "none", border: "none", color: "#9C958A", padding: "14px 14px 4px", fontSize: 13.5, fontWeight: 600 }}
       >
         Skip for now
       </button>
+      <p style={{ fontSize: 11.5, color: "#B3AA97", margin: "0 0 14px", lineHeight: 1.5 }}>
+        Your wallet will be stored without encryption on this device.
+      </p>
     </div>
   );
 }
