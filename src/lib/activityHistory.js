@@ -88,9 +88,11 @@ export function prependGuardianLog(entry) {
   }
 }
 
-// Only the enabled/disabled toggles are user config worth persisting — the
-// rule definitions themselves (title/desc/thresholds) live in code, so a
-// stored blob from an older rule set can't leave stale copy on screen.
+// Per-rule enabled/disabled AND (where a rule has one) its numeric threshold
+// are the only user config worth persisting — titles/descriptions/which
+// rules exist at all still live in code, so a stored blob from an older rule
+// set can't leave stale copy on screen (DEFAULT_GUARDIAN_RULES is always the
+// starting point; this only overrides `enabled`/`value` per matching id).
 export function loadGuardianRuleToggles() {
   try {
     const raw = localStorage.getItem(RULES_KEY);
@@ -102,7 +104,9 @@ export function loadGuardianRuleToggles() {
 
 export function saveGuardianRuleToggles(rules) {
   try {
-    const toggles = Object.fromEntries(rules.map((r) => [r.id, r.enabled]));
+    const toggles = Object.fromEntries(
+      rules.map((r) => [r.id, r.value != null ? { enabled: r.enabled, value: r.value } : { enabled: r.enabled }])
+    );
     localStorage.setItem(RULES_KEY, JSON.stringify(toggles));
   } catch {
     // non-fatal — toggles just won't survive a reload

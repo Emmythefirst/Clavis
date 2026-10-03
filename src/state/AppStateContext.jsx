@@ -49,12 +49,16 @@ export function AppStateProvider({ children }) {
   // tracking existed) rather than showing invented history.
   const [depositHistory, setDepositHistory] = useState(() => loadDepositHistory());
 
-  // Rule definitions live in code (lib/guardianRules.js); only which ones are
-  // on/off is persisted, so a stale localStorage entry from an older rule set
-  // can never leave mismatched copy on screen (see loadGuardianRuleToggles).
+  // Rule definitions (which rules exist, their titles) live in code
+  // (lib/guardianRules.js); only enabled/disabled and a rule's numeric
+  // threshold (where it has one) are persisted, so a stale localStorage entry
+  // from an older rule set can never leave mismatched copy on screen (see
+  // loadGuardianRuleToggles).
   const [guardianRules, setGuardianRules] = useState(() => {
-    const toggles = loadGuardianRuleToggles();
-    return DEFAULT_GUARDIAN_RULES.map((r) => (r.id in toggles ? { ...r, enabled: toggles[r.id] } : r));
+    const stored = loadGuardianRuleToggles();
+    return DEFAULT_GUARDIAN_RULES.map((r) =>
+      r.id in stored ? { ...r, enabled: stored[r.id].enabled, value: stored[r.id].value ?? r.value } : r
+    );
   });
   // Real log of past Guardian reviews — starts empty on a fresh device (see
   // ActivityLog's empty state) rather than showing invented history.
@@ -333,6 +337,21 @@ export function AppStateProvider({ children }) {
   function toggleGuardianRule(id) {
     setGuardianRules((rules) => {
       const next = rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r));
+      saveGuardianRuleToggles(next);
+      return next;
+    });
+  }
+
+  // Rejects non-finite/zero/negative values rather than clamping to some
+  // guessed "reasonable" range — there's no wrong number for what a user
+  // wants flagged, only a nonsensical one (NaN from an empty/partial input
+  // mid-typing, 0 or negative). large-fraction's value is a 0-100 percent
+  // (see guardianRules.js's ruleDescription); nothing stops a user setting it
+  // above 100, which just means that rule can never trigger — harmless.
+  function updateGuardianRuleValue(id, value) {
+    if (!Number.isFinite(value) || value <= 0) return;
+    setGuardianRules((rules) => {
+      const next = rules.map((r) => (r.id === id ? { ...r, value } : r));
       saveGuardianRuleToggles(next);
       return next;
     });
@@ -652,6 +671,7 @@ export function AppStateProvider({ children }) {
     guardianRules,
     guardianLog,
     toggleGuardianRule,
+    updateGuardianRuleValue,
     guardianReview,
     confirmReviewedSend,
     cancelReviewedSend,
