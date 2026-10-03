@@ -1,10 +1,24 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { btcToSats } from "@tachibtc/taurus-wallet-aggregator";
 import { useAppState } from "../../state/AppStateContext";
 import { depositRealBtc, registerDepositOnLedger } from "../../lib/taurusSdk";
+import { formatBtcFromSats } from "../../lib/vaultDisplay";
 import { ChevronLeftIcon, CheckIcon, CopyIcon, ShieldIcon } from "../icons";
 
 const DOT_COLOR = (active) => (active ? "#1C2430" : "#EFEADD");
+const PRESET_AMOUNTS = ["0.0001", "0.001", "0.01"];
+
+// btcToSats throws on anything that isn't a plain decimal ("", "0.001abc",
+// "."), which is expected while the user is mid-typing — this is just the
+// safe wrapper so Deposit's render never crashes on an in-progress value.
+function parseAmountSats(amountBtc) {
+  try {
+    return btcToSats(amountBtc);
+  } catch {
+    return null;
+  }
+}
 
 // Maps depositRealBtc's real onStage callbacks to user-facing copy — each
 // one fires at a genuine before/after point in the deposit (see taurusSdk.js),
@@ -62,6 +76,7 @@ export default function Deposit() {
     refreshVaultBalance,
     refreshFundingWalletBalance,
     recordDeposit,
+    fundingWalletBalanceSats,
   } = useAppState();
 
   const [busy, setBusy] = useState(false);
@@ -153,48 +168,102 @@ export default function Deposit() {
         <div style={{ height: 3, flex: 1, borderRadius: 2, background: DOT_COLOR(depositStep >= 2) }} />
       </div>
 
-      {depositStep === 0 && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <div style={{ textAlign: "center", margin: "24px 0 32px" }}>
-            <div style={{ fontSize: 12.5, color: "#9C958A", marginBottom: 8 }}>Amount to deposit</div>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6 }}>
-              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 40, fontWeight: 600, color: "#1C2430" }}>
-                {depositAmount}
-              </span>
-              <span style={{ fontSize: 15, color: "#9C958A", fontWeight: 600 }}>BTC</span>
-            </div>
-            <p style={{ fontSize: 12, color: "#B3AA97", marginTop: 10 }}>signet test BTC — worthless, for demo only</p>
-          </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: "auto" }}>
-            {["0.0001", "0.001", "0.01"].map((amt) => {
-              const active = depositAmount === amt;
-              return (
-                <button
-                  key={amt}
-                  onClick={() => setDepositAmount(amt)}
+      {depositStep === 0 && (() => {
+        const amountSats = parseAmountSats(depositAmount);
+        const hasBalance = fundingWalletBalanceSats != null;
+        const tooMuch = hasBalance && amountSats != null && amountSats > fundingWalletBalanceSats;
+        const invalid = amountSats == null || amountSats <= 0n;
+        return (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <div style={{ textAlign: "center", margin: "24px 0 32px" }}>
+              <div style={{ fontSize: 12.5, color: "#9C958A", marginBottom: 8 }}>Amount to deposit</div>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6 }}>
+                <input
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                  inputMode="decimal"
+                  placeholder="0.00"
                   style={{
-                    background: active ? "#1C2430" : "#F1EEE6",
+                    width: 180,
+                    textAlign: "right",
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: 40,
+                    fontWeight: 600,
+                    color: "#1C2430",
+                    background: "none",
+                    border: "none",
+                    outline: "none",
+                  }}
+                />
+                <span style={{ fontSize: 15, color: "#9C958A", fontWeight: 600 }}>BTC</span>
+              </div>
+              {tooMuch ? (
+                <p style={{ fontSize: 12, color: "#95392A", marginTop: 10 }}>
+                  More than your wallet holds ({formatBtcFromSats(fundingWalletBalanceSats)} BTC available)
+                </p>
+              ) : (
+                <p style={{ fontSize: 12, color: "#B3AA97", marginTop: 10 }}>signet test BTC — worthless, for demo only</p>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: "auto" }}>
+              {PRESET_AMOUNTS.map((amt) => {
+                const active = depositAmount === amt;
+                return (
+                  <button
+                    key={amt}
+                    onClick={() => setDepositAmount(amt)}
+                    style={{
+                      background: active ? "#1C2430" : "#F1EEE6",
+                      border: "none",
+                      borderRadius: 100,
+                      padding: "9px 16px",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: active ? "#FBF9F4" : "#5F5A4E",
+                    }}
+                  >
+                    {amt}
+                  </button>
+                );
+              })}
+              {hasBalance && fundingWalletBalanceSats > 0n && (
+                <button
+                  onClick={() => setDepositAmount(formatBtcFromSats(fundingWalletBalanceSats))}
+                  style={{
+                    background: "#F1EEE6",
                     border: "none",
                     borderRadius: 100,
                     padding: "9px 16px",
                     fontSize: 12.5,
                     fontWeight: 600,
-                    color: active ? "#FBF9F4" : "#5F5A4E",
+                    color: "#5F5A4E",
                   }}
                 >
-                  {amt}
+                  Max
                 </button>
-              );
-            })}
+              )}
+            </div>
+            <button
+              onClick={goToReview}
+              disabled={invalid || tooMuch}
+              style={{
+                width: "100%",
+                background: "#1C2430",
+                color: "#FBF9F4",
+                border: "none",
+                borderRadius: 14,
+                padding: 16,
+                fontSize: 14.5,
+                fontWeight: 700,
+                marginTop: 20,
+                opacity: invalid || tooMuch ? 0.6 : 1,
+              }}
+            >
+              Continue
+            </button>
           </div>
-          <button
-            onClick={goToReview}
-            style={{ width: "100%", background: "#1C2430", color: "#FBF9F4", border: "none", borderRadius: 14, padding: 16, fontSize: 14.5, fontWeight: 700, marginTop: 20 }}
-          >
-            Continue
-          </button>
-        </div>
-      )}
+        );
+      })()}
 
       {depositStep === 1 && busy && <BusyState label={busyLabel} />}
 
