@@ -29,6 +29,8 @@ import {
   verifyUnilateralExitPsbt,
   signUnilateralExitPsbtAsUser,
   finalizeUnilateralExitPsbt,
+  registerVault,
+  getAddressVtxos,
 } from "@tachibtc/taurus-vault-core";
 import { btcToSats, scanForUtxos, broadcastRawTransaction, Keystore } from "@tachibtc/taurus-wallet-aggregator";
 import { TachiClient } from "@tachibtc/tachi-sdk-ts";
@@ -98,6 +100,74 @@ export async function registerDepositOnLedger(mnemonicWords, amountSats) {
     await waitForVtxoCommit(vtxoId, { baseUrl, overallTimeoutMs: 60000, pollIntervalMs: 1500 });
     return { ok: true, vtxoId: vtxoId.toString("hex") };
   } catch (err) {
+    return { ok: false, message: err.message };
+  }
+}
+
+function reverseHexBytes(hex) {
+  return hex.match(/../g).reverse().join("");
+}
+
+// Registers ("opens") a vault on Tachi's ledger via a TxVaultOpen — distinct
+// from, and in addition to, registerDepositOnLedger's TxDeposit above.
+// Confirmed by direct testing (2026-10-04) that a TxDeposit mint alone
+// creates a ledger credit explicitly marked {"locked": false} in its own
+// record, and never shows up via tachi_vtxoLocked/getVaultBalance no matter
+// how long you wait — this app had never called TxVaultOpen anywhere before
+// now. TxVaultOpen consumes a free ledger VTXO to pay its fee and associates
+// a specific L1 funding outpoint with the vault; tachi_listVaults confirmed
+// this genuinely registers a real, discoverable vault at the daemon level.
+//
+// Whether this is the FULL, sufficient fix for a vault with real on-chain
+// funding is a working hypothesis backed by that evidence, not something
+// verified end-to-end — testing used a synthetic (fake) funding outpoint,
+// since reproducing "real confirmed BTC behind this outpoint" needs an
+// actual funded vault. Documented honestly rather than rounded up to
+// "confirmed fix."
+export async function registerVaultOpen(mnemonicWords, vault, fundingOutpoint) {
+  const userSigner = getUserSigner(mnemonicWords);
+  const userXOnly = toXOnly(userSigner.publicKey);
+  const network = getWalletNetworkConfig();
+  const baseUrl = network.rpc.jsonRpc;
+  const OPEN_FEE_SATS = 2n; // same daemon-enforced minimum as registerDepositOnLedger's deposit
+
+  try {
+    // Needs a free (unspent, unlocked) ledger VTXO to pay the open fee from —
+    // registerDepositOnLedger's mint should already have created one, but
+    // re-check live rather than assume a past client-side success still
+    // holds (this whole investigation started because it didn't).
+    const { vtxos } = await getAddressVtxos(userXOnly.toString("hex"), { baseUrl });
+    const free = vtxos.find((v) => !v.spent && !v.locked && v.amountSats > OPEN_FEE_SATS);
+    if (!free) {
+      return {
+        ok: false,
+        message: "No free ledger credit available to pay the vault-open fee — deposit registration needs to succeed first.",
+      };
+    }
+
+    // fundingOutpoint.txid is in scanForUtxos' standard display/explorer
+    // order; the daemon stores (and signs over) internal byte order — same
+    // reversal this project already established for deriveVaultId.
+    const reversedTxid = Buffer.from(reverseHexBytes(fundingOutpoint.txid), "hex");
+    const changeAmount = free.amountSats - OPEN_FEE_SATS;
+    const result = await registerVault({
+      vault,
+      outpoint: { fundingTxid: reversedTxid, fundingVout: fundingOutpoint.vout },
+      userSigner,
+      inputs: [{ vtxoId: Buffer.from(free.id, "hex") }],
+      outputs: [{ owner: userXOnly, amount: changeAmount }],
+      feeSats: OPEN_FEE_SATS,
+      broadcast: { ...getRpcProxyUrl("/tachi_txBroadcastSync"), timeoutMs: 20000 },
+      account: { baseUrl, requestTimeoutMs: 15000 },
+      confirm: { baseUrl, overallTimeoutMs: 60000, pollIntervalMs: 1500 },
+    });
+    return { ok: true, vaultId: result.vaultIdHex };
+  } catch (err) {
+    // Not a failure — it means an earlier attempt already succeeded (daemon
+    // code 17: "vault already exists for this funding outpoint", confirmed
+    // directly in testing). Treated as success so a retry can't loop forever
+    // on something already done.
+    if (/vault already exists/i.test(err.message)) return { ok: true, vaultId: null };
     return { ok: false, message: err.message };
   }
 }

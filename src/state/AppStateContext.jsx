@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- context Provider + its hook are intentionally colocated */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { createRealVault, getVaultBalance, getFundingWalletBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress, watchFundingWalletAddress, registerDepositOnLedger } from "../lib/taurusSdk";
+import { createRealVault, getVaultBalance, getFundingWalletBalance, sendVtxoTransfer, getVaultExitStatus, exitUnilaterally, watchVaultAddress, watchFundingWalletAddress, registerDepositOnLedger, registerVaultOpen } from "../lib/taurusSdk";
 import { isPushSupported, getExistingPushSubscription, enablePushNotifications, disablePushNotifications } from "../lib/pushNotifications";
 import { DEFAULT_GUARDIAN_RULES, evaluateGuardianRules } from "../lib/guardianRules";
 import {
@@ -550,6 +550,16 @@ export function AppStateProvider({ children }) {
       if (fresh.totalSats < amountSats) {
         const result = await registerDepositOnLedger(walletMnemonic, amountSats);
         if (!result.ok) throw new Error(result.message);
+        // TxDeposit alone mints a free, UNLOCKED ledger credit — confirmed
+        // directly (2026-10-04) that it never shows up via tachi_vtxoLocked
+        // on its own, no matter how long you wait. TxVaultOpen is the step
+        // that actually associates this vault's real funding outpoint with
+        // the ledger; vaults are atomic (one deposit for their lifetime), so
+        // exitStatus.funding[0] IS that outpoint. Working hypothesis, not a
+        // confirmed fix — see registerVaultOpen's own doc comment.
+        const outpoint = exitStatus.funding[0];
+        const openResult = await registerVaultOpen(walletMnemonic, realVault, { txid: outpoint.txid, vout: outpoint.vout });
+        if (!openResult.ok) throw new Error(openResult.message);
       }
       // Always re-check for real after this point — never assume the above
       // succeeded and force the UI to agree. A successful mint still has to
