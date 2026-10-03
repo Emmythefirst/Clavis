@@ -539,36 +539,25 @@ export function AppStateProvider({ children }) {
     setRegistrationRetryError(null);
     try {
       const amountSats = exitStatus.onChainTotalSats;
-      const result = await registerDepositOnLedger(walletMnemonic, amountSats);
-      if (!result.ok) throw new Error(result.message);
-      // A successful registration means the ledger now holds the vault's
-      // full on-chain amount — known for certain from this result, not
-      // something that needs a second, separately-flaky round trip to
-      // confirm. Set it directly first: refreshVaultBalance/refreshExitStatus
-      // both silently KEEP their stale value on a transient failure (by
-      // design, so a flaky moment never falsely shows an empty vault) — which
-      // means a hiccup in the very next check right after a real fix would
-      // otherwise make it look like the retry did nothing at all. Exit's own
-      // block is gated on exitStatus.settled specifically, not vaultBalanceSats,
-      // so both need the same optimistic update or Exit alone would still
-      // show blocked even once Home looks fixed.
-      setExitStatus((prev) => (prev ? { ...prev, ledgerBalanceSats: amountSats, settled: true } : prev));
-      setVaultBalanceSats(amountSats);
-      // getVaultBalance (what both calls below hit internally) reads Tachi's
-      // ledger directly — right after broadcasting a registration, that read
-      // can still legitimately return the pre-registration value for a
-      // moment (propagation lag, not a failure), and refreshVaultBalance's
-      // success path would overwrite the known-correct amount above with
-      // that stale read. Reasserting it last guarantees nothing in between
-      // can clobber a value we already know is correct.
+      // Re-check the REAL ledger balance immediately before registering —
+      // not the possibly-stale exitStatus/vaultBalanceSats already in
+      // memory. registerDepositOnLedger's mint isn't tied to a specific
+      // on-chain outpoint (it's just "credit this user this many sats"), so
+      // nothing stops a second call from minting a genuine duplicate if the
+      // first attempt already succeeded and the UI just hadn't caught up.
+      // Only register if a fresh read confirms it's still actually needed.
+      const fresh = await getVaultBalance(realVault);
+      if (fresh.totalSats < amountSats) {
+        const result = await registerDepositOnLedger(walletMnemonic, amountSats);
+        if (!result.ok) throw new Error(result.message);
+      }
+      // Always re-check for real after this point — never assume the above
+      // succeeded and force the UI to agree. A successful mint still has to
+      // actually show up on a subsequent read before it's trusted; showing
+      // "fixed" ahead of what the server confirms would mean lying to the
+      // user about their own vault's real state if something's still wrong.
       await refreshVaultBalance();
       await refreshExitStatus();
-      // refreshExitStatus hits the exact same ledger-propagation-lag risk
-      // internally — reassert both known-correct values last so neither
-      // refresh above can regress a confirmed fix back to a stale pre-
-      // registration read.
-      setVaultBalanceSats(amountSats);
-      setExitStatus((prev) => (prev ? { ...prev, ledgerBalanceSats: amountSats, settled: true } : prev));
     } catch (err) {
       setRegistrationRetryError(err.message);
     } finally {
