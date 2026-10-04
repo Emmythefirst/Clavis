@@ -533,41 +533,39 @@ export function AppStateProvider({ children }) {
   // (Home/Exit), using the vault's one-and-only deposit amount — vaults are
   // atomic (one deposit for their lifetime), so onChainTotalSats IS the
   // amount that needs registering, no need to look up deposit history.
+  // Verbose by design, temporarily — this has gone through several rounds of
+  // "it still doesn't work" with no visible error, and guessing blind from
+  // outside the user's own browser/account isn't working. Reports what each
+  // real step actually returned, always (not just on failure), so the next
+  // attempt is diagnosable from the screenshot alone instead of another
+  // round trip. Trim back down once this is actually resolved.
   async function retryVaultRegistration() {
     if (!exitStatus || exitStatus.onChainTotalSats <= 0n) return;
     setRegistrationRetryBusy(true);
     setRegistrationRetryError(null);
+    const steps = [];
     try {
       const amountSats = exitStatus.onChainTotalSats;
-      // Re-check the REAL ledger balance immediately before registering —
-      // not the possibly-stale exitStatus/vaultBalanceSats already in
-      // memory. registerDepositOnLedger's mint isn't tied to a specific
-      // on-chain outpoint (it's just "credit this user this many sats"), so
-      // nothing stops a second call from minting a genuine duplicate if the
-      // first attempt already succeeded and the UI just hadn't caught up.
-      // Only register if a fresh read confirms it's still actually needed.
       const fresh = await getVaultBalance(realVault);
+      steps.push(`fresh ledger balance: ${fresh.totalSats} (need ${amountSats})`);
       if (fresh.totalSats < amountSats) {
         const result = await registerDepositOnLedger(walletMnemonic, amountSats);
-        if (!result.ok) throw new Error(result.message);
-        // TxDeposit alone mints a free, UNLOCKED ledger credit — confirmed
-        // directly (2026-10-04) that it never shows up via tachi_vtxoLocked
-        // on its own, no matter how long you wait. TxVaultOpen is the step
-        // that actually associates this vault's real funding outpoint with
-        // the ledger; vaults are atomic (one deposit for their lifetime), so
-        // exitStatus.funding[0] IS that outpoint. Working hypothesis, not a
-        // confirmed fix — see registerVaultOpen's own doc comment.
+        steps.push(`registerDepositOnLedger: ${result.ok ? `ok (vtxoId ${result.vtxoId})` : `FAILED: ${result.message}`}`);
+        if (!result.ok) throw new Error(steps.join(" | "));
+
         const outpoint = exitStatus.funding[0];
         const openResult = await registerVaultOpen(walletMnemonic, realVault, { txid: outpoint.txid, vout: outpoint.vout });
-        if (!openResult.ok) throw new Error(openResult.message);
+        steps.push(`registerVaultOpen: ${openResult.ok ? `ok (vaultId ${openResult.vaultId ?? "already open"})` : `FAILED: ${openResult.message}`}`);
+        if (!openResult.ok) throw new Error(steps.join(" | "));
       }
-      // Always re-check for real after this point — never assume the above
-      // succeeded and force the UI to agree. A successful mint still has to
-      // actually show up on a subsequent read before it's trusted; showing
-      // "fixed" ahead of what the server confirms would mean lying to the
-      // user about their own vault's real state if something's still wrong.
       await refreshVaultBalance();
       await refreshExitStatus();
+      const after = await getVaultBalance(realVault);
+      steps.push(`ledger balance after refresh: ${after.totalSats}`);
+      // Surface the trail even on a clean run — "it completed with no
+      // errors but the balance is still 0" is itself the finding we need,
+      // not silence.
+      setRegistrationRetryError(steps.join(" | "));
     } catch (err) {
       setRegistrationRetryError(err.message);
     } finally {
