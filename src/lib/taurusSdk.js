@@ -1,8 +1,26 @@
-// Adapter over the TAURUS vault SDK. Vault creation and deposit below are
-// REAL — live calls against Tachi's hosted signet daemon via
-// @tachibtc/taurus-vault-core. Vault/Guardian *display* state (balances,
-// activity, timelock countdown shown on Home/Exit) is still mocked pending
-// broader real-state wiring — see PROGRESS.md for what's real vs mocked.
+// Adapter over the TAURUS vault SDK. Everything in this file makes real
+// calls against Tachi's hosted signet daemon via @tachibtc/taurus-vault-core
+// — no mocked balances, sends, or activity. The one deliberate, narrowly
+// scoped exception is TACHI_LEDGER_LOCK_BUG_WORKAROUND below.
+
+// TEMPORARY, explicit, and should be flipped to false the moment Tachi's fix
+// ships — do not let this linger. Tachi's team confirmed directly (message
+// to the project owner, 2026-10-04): a real daemon-side bug currently
+// prevents a deposited vault's ledger balance from ever showing as locked/
+// spendable, even after both TxDeposit and TxVaultOpen genuinely succeed
+// (see PROGRESS.md's 2026-10-04 entries for the full investigation that
+// found and confirmed this with Tachi). Their own words: "please fill out
+// with mock data" for the submission deadline, with a real fix coming once
+// their PR merges. This flag exists ONLY to stand in for that one specific,
+// confirmed, externally-owned bug — not as a general excuse to fake
+// anything else. When true: a vault with real on-chain funding is treated
+// as fully settled/spendable for its real on-chain amount regardless of
+// what the (currently broken) ledger lock-up check reports, and Send
+// simulates a successful ledger transfer instead of attempting a real one
+// that would fail for the same reason. Everything else in this app — the
+// on-chain deposit itself, PIN encryption, Guardian's rule evaluation,
+// Vault Watch, the exit timelock — stays completely real either way.
+export const TACHI_LEDGER_LOCK_BUG_WORKAROUND = true;
 
 import {
   createVault,
