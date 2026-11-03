@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../state/AppStateContext";
 import { getStatusMeta, getVaultStatusBucket, getTimelockHeadline, getGuardianMeta, getVaultWatchAlert, formatBtcFromSats } from "../../lib/vaultDisplay";
@@ -31,12 +32,27 @@ export default function Home() {
     vaultBalanceError,
     refreshVaultBalance,
     fundingWalletBalanceSats,
+    refreshFundingWalletBalance,
     openTooltip,
     sendHistory,
     retryVaultRegistration,
     registrationRetryBusy,
     registrationRetryError,
   } = useAppState();
+
+  // refreshFundingWalletBalance silently keeps the last known value on a
+  // transient failure (by design — see AppStateContext), which is correct
+  // but means this card has no way to recover on its own if the one attempt
+  // that mattered (right after a deposit) happened to hit the shared signet
+  // daemon's own occasional contention. A manual retry here doesn't change
+  // that silent-preserve behavior, it just gives the user a way to ask for
+  // a fresh check instead of waiting for the next automatic trigger.
+  const [fundingRefreshBusy, setFundingRefreshBusy] = useState(false);
+  async function retryFundingBalance() {
+    setFundingRefreshBusy(true);
+    await refreshFundingWalletBalance();
+    setFundingRefreshBusy(false);
+  }
 
   const breachDetected = vaultWatchStatus?.lastCheck?.breachDetected ?? false;
   const status = getStatusMeta(getVaultStatusBucket(exitStatus, breachDetected));
@@ -217,8 +233,7 @@ export default function Home() {
       </div>
 
       {hasFundingWalletBalance && (
-        <button
-          onClick={() => navigate("/app/deposit")}
+        <div
           style={{
             display: "flex",
             alignItems: "center",
@@ -229,10 +244,12 @@ export default function Home() {
             borderRadius: 16,
             padding: "14px 16px",
             marginBottom: 14,
-            textAlign: "left",
           }}
         >
-          <div>
+          <button
+            onClick={() => navigate("/app/deposit")}
+            style={{ textAlign: "left", flex: 1, minWidth: 0, background: "none", border: "none", padding: 0 }}
+          >
             <div style={{ fontSize: 11, fontWeight: 700, color: "#9C958A", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
               BTC in wallet
             </div>
@@ -240,12 +257,32 @@ export default function Home() {
               {fundingWalletBalanceSats.toLocaleString()} sats
             </div>
             <div style={{ fontSize: 11.5, color: "#9C958A", marginTop: 2 }}>Ready to deposit into your vault</div>
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <button
+              onClick={retryFundingBalance}
+              disabled={fundingRefreshBusy}
+              title="Recheck balance"
+              style={{
+                fontSize: 15,
+                color: "#9C958A",
+                padding: 4,
+                background: "none",
+                border: "none",
+                opacity: fundingRefreshBusy ? 0.5 : 1,
+              }}
+            >
+              ↻
+            </button>
+            <button
+              onClick={() => navigate("/app/deposit")}
+              style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0 }}
+            >
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#1C2430" }}>Deposit</span>
+              <ChevronRightIcon size={15} color="#B8842E" />
+            </button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#1C2430" }}>Deposit</span>
-            <ChevronRightIcon size={15} color="#B8842E" />
-          </div>
-        </button>
+        </div>
       )}
 
       <div style={{ background: guardian.bg, borderRadius: 16, padding: "14px 16px", marginBottom: 14, transition: "background 0.3s" }}>
