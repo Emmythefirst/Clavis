@@ -435,11 +435,12 @@ export function AppStateProvider({ children }) {
       // a send to its Guardian outcome exactly, instead of guessing from two
       // independently-timed Date.now() calls a line apart.
       const timestamp = Date.now();
-      setSendHistory(appendSendHistory({ recipient, amountSats, timestamp }));
+      const updatedSendHistory = appendSendHistory({ recipient, amountSats, timestamp });
+      setSendHistory(updatedSendHistory);
       logGuardianReview({ checks, triggered, amountSats, recipient, status: triggered.length > 0 ? "confirmed" : "clean", timestamp });
       setSendTxHash(result.txHash);
       setSendSuccess(true);
-      await refreshAllVaultState(vault);
+      await refreshAllVaultState(vault, updatedSendHistory);
     } catch (err) {
       setSendError(err.message);
     } finally {
@@ -507,7 +508,7 @@ export function AppStateProvider({ children }) {
   // automatically once the vault is ready (see the [realVault] effect above)
   // and again by Deposit right after a successful deposit, so Home reflects
   // the change without needing a manual refresh.
-  async function refreshVaultBalance(knownExitStatus) {
+  async function refreshVaultBalance(knownExitStatus, knownSendHistory) {
     if (!realVault) return;
     setVaultLoading(true);
     try {
@@ -517,7 +518,12 @@ export function AppStateProvider({ children }) {
       // raises the shown balance to the real on-chain total, never invents
       // anything beyond what's actually deposited.
       const onChain = (knownExitStatus ?? exitStatus)?.onChainTotalSats ?? 0n;
-      const sentSoFar = sendHistory.reduce((sum, h) => sum + h.amountSats, 0n);
+      // knownSendHistory, when given, is the just-appended array from the
+      // caller (executeSend) — using the sendHistory closure here instead
+      // would be stale the moment this runs right after setSendHistory in
+      // the same call chain, since React hasn't re-rendered yet. Same class
+      // of bug already fixed for exitStatus itself.
+      const sentSoFar = (knownSendHistory ?? sendHistory).reduce((sum, h) => sum + h.amountSats, 0n);
       const workaroundBalance = onChain > sentSoFar ? onChain - sentSoFar : 0n;
       const effective = TACHI_LEDGER_LOCK_BUG_WORKAROUND && onChain > totalSats ? workaroundBalance : totalSats;
       setVaultBalanceSats(effective);
@@ -538,7 +544,7 @@ export function AppStateProvider({ children }) {
   // taurusSdk.js for why this checks the vault's actual Bitcoin-layer UTXOs
   // (scanForUtxos) rather than Tachi's ledger balance, and what `settled`
   // guards against.
-  async function refreshExitStatus() {
+  async function refreshExitStatus(knownSendHistory) {
     if (!realVault) return null;
     setExitStatusLoading(true);
     try {
@@ -551,7 +557,10 @@ export function AppStateProvider({ children }) {
       // bookkeeping either way) so the shown balance actually decreases
       // after a send instead of always snapping back to the full on-chain
       // total — same as what the real ledger would do once Tachi's fix ships.
-      const sentSoFar = sendHistory.reduce((sum, h) => sum + h.amountSats, 0n);
+      // knownSendHistory (passed by executeSend right after appending to it)
+      // avoids reading the stale pre-send closure value — see
+      // refreshVaultBalance's identical comment for why that matters here.
+      const sentSoFar = (knownSendHistory ?? sendHistory).reduce((sum, h) => sum + h.amountSats, 0n);
       const workaroundBalance = status.onChainTotalSats > sentSoFar ? status.onChainTotalSats - sentSoFar : 0n;
       const ledgerBalanceSats = needsWorkaround ? workaroundBalance : status.ledgerBalanceSats;
       // ledgerLockWorkaroundApplied matters beyond display — executeSend
@@ -679,7 +688,7 @@ export function AppStateProvider({ children }) {
   // other, not from any other user of the shared daemon). refreshVaultBalance
   // uses a different, non-scanning endpoint (tachi_vtxoLocked) so it's safe
   // to run alongside the others.
-  async function refreshAllVaultState(vault) {
+  async function refreshAllVaultState(vault, knownSendHistory) {
     if (vaultStateRefreshInFlight.current) return;
     vaultStateRefreshInFlight.current = true;
     try {
@@ -687,8 +696,11 @@ export function AppStateProvider({ children }) {
       // (see taurusSdk.js) needs this call's freshly-computed onChainTotalSats,
       // not whatever exitStatus happened to be from the last render — passed
       // explicitly rather than relying on React state to have updated in time.
-      const status = await refreshExitStatus();
-      await refreshVaultBalance(status);
+      // knownSendHistory (from executeSend, right after a send) is the same
+      // kind of freshness fix — the sendHistory closure here would otherwise
+      // be one render behind the send that was just appended.
+      const status = await refreshExitStatus(knownSendHistory);
+      await refreshVaultBalance(status, knownSendHistory);
       await registerVaultWatch(vault);
       await refreshFundingWalletBalance();
     } finally {
