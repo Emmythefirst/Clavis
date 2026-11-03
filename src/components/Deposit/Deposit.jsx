@@ -75,6 +75,7 @@ export default function Deposit() {
     ensureRealVault,
     refreshVaultBalance,
     refreshFundingWalletBalance,
+    refreshExitStatus,
     recordDeposit,
     fundingWalletBalanceSats,
   } = useAppState();
@@ -111,8 +112,18 @@ export default function Deposit() {
         setDepositResult(result);
         setDepositStep(2);
         recordDeposit(result.amountSats, result.txid);
-        refreshVaultBalance();
-        refreshFundingWalletBalance();
+        // Exit's own data (exitStatus) was never refreshed here before —
+        // only the ledger balance and funding-wallet figures were, so a
+        // deposit that genuinely succeeded still left Exit showing stale
+        // "nothing to exit" data (its real on-chain UTXO scan) until some
+        // other trigger (a reload, a WS event) happened to refresh it.
+        // Sequential, not concurrent — refreshExitStatus's scanForUtxos and
+        // refreshVaultBalance both hit the same shared signet daemon, which
+        // only allows one scan at a time node-wide (see AppStateContext's
+        // refreshAllVaultState for the same reasoning).
+        const status = await refreshExitStatus();
+        await refreshVaultBalance(status);
+        await refreshFundingWalletBalance();
       } else {
         setDepositError(result);
       }
