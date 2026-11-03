@@ -31,6 +31,7 @@ export default function Home() {
     vaultLoading,
     vaultBalanceError,
     refreshVaultBalance,
+    refreshExitStatus,
     fundingWalletBalanceSats,
     refreshFundingWalletBalance,
     openTooltip,
@@ -52,6 +53,22 @@ export default function Home() {
     setFundingRefreshBusy(true);
     await refreshFundingWalletBalance();
     setFundingRefreshBusy(false);
+  }
+
+  // The vault card's own on-chain/ledger data previously only refreshed on a
+  // full page load (or right after this device's own Deposit) — there was
+  // no way to ask for a fresh check otherwise, which reads as "stuck" while
+  // waiting on a real confirmation. Same pattern as retryFundingBalance:
+  // doesn't change what's real, just gives a way to ask for a fresh read.
+  // Passes refreshExitStatus's fresh result into refreshVaultBalance
+  // explicitly — relying on React state to have updated within this same
+  // call would hit the same stale-closure bug already fixed elsewhere.
+  const [vaultRefreshBusy, setVaultRefreshBusy] = useState(false);
+  async function retryVaultCheck() {
+    setVaultRefreshBusy(true);
+    const status = await refreshExitStatus();
+    await refreshVaultBalance(status);
+    setVaultRefreshBusy(false);
   }
 
   const breachDetected = vaultWatchStatus?.lastCheck?.breachDetected ?? false;
@@ -120,11 +137,21 @@ export default function Home() {
           card at all); now the vault reads as one object with a state,
           rather than a tile that sometimes exists and sometimes doesn't. */}
       <div style={{ background: "#1C2430", borderRadius: 22, padding: "22px 20px", marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
-          <LockIcon color="#9BA3AF" />
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#9BA3AF", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Your vault
-          </span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <LockIcon color="#9BA3AF" />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#9BA3AF", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              Your vault
+            </span>
+          </div>
+          <button
+            onClick={retryVaultCheck}
+            disabled={vaultRefreshBusy}
+            title="Recheck vault"
+            style={{ fontSize: 15, color: "#9BA3AF", background: "none", border: "none", padding: 4, opacity: vaultRefreshBusy ? 0.5 : 1 }}
+          >
+            ↻
+          </button>
         </div>
 
         {vaultBalanceError ? (
